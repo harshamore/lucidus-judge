@@ -736,6 +736,7 @@ def get_ai_career_matches():
         1. Analyze the student's profile
         2. Find the 6 best career matches from the provided list
         3. Return a JSON response with these matches, including explanations for why each match is good
+        4. Assign higher score to Interests, Values and Skills, lower score to Skills to develop
 
         For each career match, include:
         - Career title and description
@@ -838,7 +839,7 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
            - One set from an AI system that uses more advanced matching
 
         Your task is to:
-        1. Analyze both sets of recommendations
+        1. Analyze both sets of recommendations and suggest why you picking one over the other
         2. Create a refined set of 6 career suggestions that represents the best matches by combining insights from both methods
         3. Provide a brief explanation of why each career made your final list
         4. Assign a match score to each career (1-100) and sort by descending score
