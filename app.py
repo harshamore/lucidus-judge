@@ -5,23 +5,15 @@ import json
 import openai
 from openai import OpenAI
 
-# Load OpenAI API key from secrets
-openai_api_key = st.secrets["OPENAI_API_KEY"]
-
-# Check for OpenAI API key in Streamlit secrets
-if "OPENAI_API_KEY" not in st.secrets:
-    st.error("Please set the OPENAI_API_KEY in your Streamlit secrets!")
-    st.stop()
-
 # Set page configuration
 st.set_page_config(
-    page_title="AI Career Discovery",
+    page_title="Career Discovery Platform",
     page_icon="🧭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for styling - with direct CSS for tag elements and blue selection color
+# Add custom CSS for styling
 st.markdown("""
 <style>
     .main {
@@ -150,6 +142,73 @@ st.markdown("""
     .top-match {
         border: 2px solid #1976d2;
         box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    
+    .method-tabs {
+        display: flex;
+        margin-bottom: 1rem;
+    }
+    
+    .method-tab {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem 0.5rem 0 0;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .tab-active {
+        background-color: #1976d2;
+        color: white;
+    }
+    
+    .tab-inactive {
+        background-color: #e0e0e0;
+        color: #757575;
+    }
+    
+    /* Result comparison styling */
+    .comparison-card {
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .verdict-card {
+        background-color: #fff8e1;
+        border: 1px solid #ffd54f;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .manual-badge {
+        background-color: #e0e0e0;
+        color: #616161;
+        border-radius: 1rem;
+        padding: 0.2rem 0.6rem;
+        margin-right: 0.3rem;
+        font-size: 0.7rem;
+    }
+    
+    .ai-badge {
+        background-color: #bbdefb;
+        color: #1565c0;
+        border-radius: 1rem;
+        padding: 0.2rem 0.6rem;
+        margin-right: 0.3rem;
+        font-size: 0.7rem;
+    }
+    
+    .judge-badge {
+        background-color: #fff8e1;
+        color: #ff8f00;
+        border-radius: 1rem;
+        padding: 0.2rem 0.6rem;
+        margin-right: 0.3rem;
+        font-size: 0.7rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -522,18 +581,24 @@ if 'desired_skills' not in st.session_state:
     st.session_state.desired_skills = []
 if 'selected_sdgs' not in st.session_state:
     st.session_state.selected_sdgs = []
-if 'career_matches' not in st.session_state:
-    st.session_state.career_matches = []
+if 'manual_career_matches' not in st.session_state:
+    st.session_state.manual_career_matches = []
+if 'ai_career_matches' not in st.session_state:
+    st.session_state.ai_career_matches = []
+if 'judge_career_matches' not in st.session_state:
+    st.session_state.judge_career_matches = []
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = "manual"  # Default to manual tab
+if 'has_api_key' not in st.session_state:
+    st.session_state.has_api_key = False
 
-# Load OpenAI API key from secrets
+# Try to get OpenAI API key
 try:
     openai_api_key = st.secrets["OPENAI_API_KEY"]
-    # Make it globally available
-    has_api_key = True
+    st.session_state.has_api_key = True
 except Exception as e:
     openai_api_key = None
-    has_api_key = False
-    st.error(f"OpenAI API key not found in secrets. Please add it to your Streamlit secrets.toml file. Error: {e}")
+    st.session_state.has_api_key = False
 
 # Load data
 careers = load_career_data()
@@ -573,107 +638,276 @@ def handle_sdg_select(sdg_id):
 def get_sdg_names(sdg_ids):
     return [sdg["name"] for sdg in sdgs if sdg["id"] in sdg_ids]
 
-# OpenAI API call to match careers
-def get_ai_career_matches():
-                    # Create the client
-    #client = OpenAI(api_key=st.session_state.openai_api_key)
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Manual career matching algorithm
+def match_careers_manually():
+    # Score each career based on matches
+    scored_careers = []
     
-    # Format interests, skills, and SDGs
-    interests_str = ", ".join(st.session_state.selected_interests)
-    current_skills_str = ", ".join(st.session_state.current_skills)
-    desired_skills_str = ", ".join(st.session_state.desired_skills)
-    sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
-    
-    # Construct the career data
-    career_data = []
     for career in careers:
-        career_info = {
-            "id": career["id"],
-            "title": career["title"],
-            "description": career["description"],
-            "sdgs": [f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in career["sdgs"]]
+        score = 0
+        match_details = {
+            "interest_matches": [],
+            "skill_matches": {
+                "current": [],
+                "desired": []
+            },
+            "sdg_matches": []
         }
-        career_data.append(career_info)
+        
+        # Score for matching interests (highest weight)
+        for interest in st.session_state.selected_interests:
+            if interest in career["interests"]:
+                score += 3
+                match_details["interest_matches"].append(interest)
+        
+        # Score for matching current skills
+        for skill in st.session_state.current_skills:
+            if skill in career["skills"]:
+                score += 2
+                match_details["skill_matches"]["current"].append(skill)
+        
+        # Score for matching desired skills (lower weight than current)
+        for skill in st.session_state.desired_skills:
+            if skill in career["skills"]:
+                score += 1
+                match_details["skill_matches"]["desired"].append(skill)
+        
+        # Score for matching SDGs (high weight - values are important)
+        for sdg_id in st.session_state.selected_sdgs:
+            if sdg_id in career["sdgs"]:
+                score += 3
+                match_details["sdg_matches"].append(sdg_id)
+        
+        career_with_score = career.copy()
+        career_with_score["score"] = score
+        career_with_score["match_details"] = match_details
+        # Calculate match percentage (max score would be 3*3 + 3*2 + 3*1 + 3*3 = 27)
+        career_with_score["match_score"] = int((score / 27) * 100)
+        scored_careers.append(career_with_score)
     
-    career_data_json = json.dumps(career_data)
+    # Sort by score and take top 6
+    top_matches = sorted(
+        [c for c in scored_careers if c["score"] > 0],
+        key=lambda x: x["score"],
+        reverse=True
+    )[:6]
     
-    # Construct the prompt for OpenAI
-    system_prompt = f"""You are a career counselor AI that helps students find the best career matches based on their interests, skills, and values.
+    return top_matches
 
-You'll be given:
-1. A student's interests, current skills, desired skills, and values (UN SDGs they care about)
-2. A list of potential careers with descriptions and associated SDGs
-
-Your task is to:
-1. Analyze the student's profile
-2. Find the 6 best career matches from the provided list
-3. Return a JSON response with these matches, including explanations for why each match is good
-
-For each career match, include:
-- Career title and description
-- Detailed explanation of why this is a good match based on interests, skills, and SDGs
-- Key interests, skills, and SDGs that align with this career
-- A "match_score" between 1-100 indicating how good the match is (highest score first)
-
-Focus on finding careers that match the student's values (SDGs) first, then look for interest and skill alignment.
-"""
-
-    user_prompt = f"""
-Here is the student's profile:
-
-Interests: {interests_str}
-Current Skills: {current_skills_str}
-Skills to Develop: {desired_skills_str}
-Values (SDGs): {sdgs_str}
-
-Here are the available careers to match from:
-{career_data_json}
-
-Return a JSON object with exactly 6 career matches in this format:
-{{
-  "career_matches": [
-    {{
-      "id": career_id,
-      "title": "Career Title",
-      "description": "Career description",
-      "match_score": score_between_1_and_100,
-      "explanation": "Detailed explanation of why this is a good match",
-      "matching_interests": ["interest1", "interest2"],
-      "matching_skills": {{"current": ["skill1", "skill2"], "desired": ["skill3"]}},
-      "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
-    }},
-    ...
-  ]
-}}
-
-Ensure each career has a different match_score and sort by match_score in descending order.
-"""
-
-    # Get completion from OpenAI
+# AI-based career matching using OpenAI
+def get_ai_career_matches():
+    if not st.session_state.has_api_key:
+        st.error("OpenAI API key not found in secrets. Please add it to your Streamlit secrets.toml file.")
+        return []
+    
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4.1-mini",  # You can use gpt-3.5-turbo for a cheaper but less powerful option
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.5  # Lower temperature for more consistent results
-        )
+        # Create the client
+        client = OpenAI(api_key=openai_api_key)
         
-        # Extract and parse the JSON response
-        response_content = completion.choices[0].message.content
+        # Format interests, skills, and SDGs
+        interests_str = ", ".join(st.session_state.selected_interests)
+        current_skills_str = ", ".join(st.session_state.current_skills)
+        desired_skills_str = ", ".join(st.session_state.desired_skills)
+        sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
         
+        # Construct the career data
+        career_data = []
+        for career in careers:
+            career_info = {
+                "id": career["id"],
+                "title": career["title"],
+                "description": career["description"],
+                "interests": career["interests"],
+                "skills": career["skills"],
+                "sdgs": [f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in career["sdgs"]]
+            }
+            career_data.append(career_info)
+        
+        career_data_json = json.dumps(career_data)
+        
+        # Construct the prompt for OpenAI
+        system_prompt = f"""You are a career counselor AI that helps students find the best career matches based on their interests, skills, and values.
+
+        You'll be given:
+        1. A student's interests, current skills, desired skills, and values (UN SDGs they care about)
+        2. A list of potential careers with descriptions, interests, skills, and associated SDGs
+
+        Your task is to:
+        1. Analyze the student's profile
+        2. Find the 6 best career matches from the provided list
+        3. Return a JSON response with these matches, including explanations for why each match is good
+
+        For each career match, include:
+        - Career title and description
+        - Detailed explanation of why this is a good match based on interests, skills, and SDGs
+        - Key interests, skills, and SDGs that align with this career
+        - A "match_score" between 1-100 indicating how good the match is (highest score first)
+
+        Focus on finding careers that match the student's values (SDGs) first, then look for interest and skill alignment.
+        """
+
+        user_prompt = f"""
+        Here is the student's profile:
+
+        Interests: {interests_str}
+        Current Skills: {current_skills_str}
+        Skills to Develop: {desired_skills_str}
+        Values (SDGs): {sdgs_str}
+
+        Here are the available careers to match from:
+        {career_data_json}
+
+        Return a JSON object with exactly 6 career matches in this format:
+        {{
+          "career_matches": [
+            {{
+              "id": career_id,
+              "title": "Career Title",
+              "description": "Career description",
+              "match_score": score_between_1_and_100,
+              "explanation": "Detailed explanation of why this is a good match",
+              "matching_interests": ["interest1", "interest2"],
+              "matching_skills": {{"current": ["skill1", "skill2"], "desired": ["skill3"]}},
+              "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
+            }},
+            ...
+          ]
+        }}
+
+        Ensure each career has a different match_score and sort by match_score in descending order.
+        """
+
+        # Get completion from OpenAI
         try:
-            parsed_response = json.loads(response_content)
-            return parsed_response["career_matches"]
-        except json.JSONDecodeError:
-            st.error("Failed to parse AI response. Please try again.")
-            return []
+            completion = client.chat.completions.create(
+                model="gpt-4.1-mini",  # You can use gpt-3.5-turbo for a cheaper but less powerful option
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.5  # Lower temperature for more consistent results
+            )
             
+            # Extract and parse the JSON response
+            response_content = completion.choices[0].message.content
+            
+            try:
+                parsed_response = json.loads(response_content)
+                return parsed_response["career_matches"]
+            except json.JSONDecodeError:
+                st.error("Failed to parse AI response. Please try again.")
+                return []
+                
+        except Exception as e:
+            st.error(f"Error connecting to OpenAI API: {str(e)}")
+            return []
     except Exception as e:
-        st.error(f"Error connecting to OpenAI API: {str(e)}")
+        st.error(f"Error: {str(e)}")
+        return []
+
+# AI Judge function to evaluate and combine both methods
+def get_ai_judge_career_matches(manual_matches, ai_matches):
+    if not st.session_state.has_api_key:
+        st.error("OpenAI API key not found in secrets. Please add it to your Streamlit secrets.toml file.")
+        return []
+        
+    try:
+        # Create the client
+        client = OpenAI(api_key=openai_api_key)
+        
+        # Format interests, skills, and SDGs for context
+        interests_str = ", ".join(st.session_state.selected_interests)
+        current_skills_str = ", ".join(st.session_state.current_skills)
+        desired_skills_str = ", ".join(st.session_state.desired_skills)
+        sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
+        
+        # Prepare manual matches for the prompt
+        manual_matches_json = json.dumps(manual_matches)
+        
+        # Prepare AI matches for the prompt  
+        ai_matches_json = json.dumps(ai_matches)
+        
+        # Construct the prompt for OpenAI Judge
+        system_prompt = f"""You are an expert AI career counselor who evaluates career recommendations.
+
+        You'll be given:
+        1. A student's profile (interests, skills, and values)
+        2. Two sets of career recommendations:
+           - One set from a manual algorithm that uses weighted scoring
+           - One set from an AI system that uses more advanced matching
+
+        Your task is to:
+        1. Analyze both sets of recommendations
+        2. Create a refined set of 6 career suggestions that represents the best matches by combining insights from both methods
+        3. Provide a brief explanation of why each career made your final list
+        4. Assign a match score to each career (1-100) and sort by descending score
+
+        Your response should be more accurate than either method alone by leveraging the strengths of both approaches.
+        """
+
+        user_prompt = f"""
+        Here is the student's profile:
+
+        Interests: {interests_str}
+        Current Skills: {current_skills_str}
+        Skills to Develop: {desired_skills_str}
+        Values (SDGs): {sdgs_str}
+
+        Here are the career matches from the manual algorithm:
+        {manual_matches_json}
+
+        Here are the career matches from the AI algorithm:
+        {ai_matches_json}
+
+        Provide your expert judgment on the best 6 career matches in this JSON format:
+        {{
+          "career_matches": [
+            {{
+              "id": career_id,
+              "title": "Career Title",
+              "description": "Career description",
+              "match_score": score_between_1_and_100,
+              "explanation": "Your expert reasoning on why this is a good match",
+              "analysis": "Brief comparison of how this career was ranked in both systems",
+              "matching_interests": ["interest1", "interest2"],
+              "matching_skills": {{"current": ["skill1", "skill2"], "desired": ["skill3"]}},
+              "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
+            }},
+            ...
+          ]
+        }}
+
+        Make sure each career has a unique match score and sort them by match_score in descending order.
+        """
+
+        # Get completion from OpenAI
+        try:
+            completion = client.chat.completions.create(
+                model="gpt-4.1-mini",  # Using a more powerful model for the judge
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3  # Lower temperature for more consistent results
+            )
+            
+            # Extract and parse the JSON response
+            response_content = completion.choices[0].message.content
+            
+            try:
+                parsed_response = json.loads(response_content)
+                return parsed_response["career_matches"]
+            except json.JSONDecodeError:
+                st.error("Failed to parse AI Judge response. Please try again.")
+                return []
+                
+        except Exception as e:
+            st.error(f"Error connecting to OpenAI API: {str(e)}")
+            return []
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
         return []
 
 def go_to_next_step():
@@ -682,13 +916,23 @@ def go_to_next_step():
     elif st.session_state.step == 2 and len(st.session_state.current_skills) == 3 and len(st.session_state.desired_skills) == 3:
         st.session_state.step = 3
     elif st.session_state.step == 3 and len(st.session_state.selected_sdgs) > 0:
-        # In this version, we'll call the AI matching function
+        # Generate career matches using all methods
+        with st.spinner("Generating career matches..."):
+            # Get manual matches
+            st.session_state.manual_career_matches = match_careers_manually()
+            
+            # Get AI matches if API key is available
+            if st.session_state.has_api_key:
+                st.session_state.ai_career_matches = get_ai_career_matches()
+                
+                # Get AI Judge matches if both other methods have results
+                if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
+                    st.session_state.judge_career_matches = get_ai_judge_career_matches(
+                        st.session_state.manual_career_matches, 
+                        st.session_state.ai_career_matches
+                    )
+        
         st.session_state.step = 4
-        if has_api_key:
-            with st.spinner("AI is analyzing your profile and finding the best career matches..."):
-                st.session_state.career_matches = get_ai_career_matches()
-        else:
-            st.error("OpenAI API key not found in secrets. Please add it to your Streamlit secrets.toml file.")
 
 def restart():
     st.session_state.step = 1
@@ -696,25 +940,37 @@ def restart():
     st.session_state.current_skills = []
     st.session_state.desired_skills = []
     st.session_state.selected_sdgs = []
-    st.session_state.career_matches = []
+    st.session_state.manual_career_matches = []
+    st.session_state.ai_career_matches = []
+    st.session_state.judge_career_matches = []
+    st.session_state.active_tab = "manual"
 
 # Sidebar with info about the app
 with st.sidebar:
-    st.title("AI Career Discovery")
-    st.write("Use AI to find your ideal career path based on your interests, skills, and values.")
+    st.title("Career Discovery Platform")
+    st.write("Find your ideal career path based on your interests, skills, and values.")
     
     st.markdown("---")
-    st.write("This app uses OpenAI's GPT-4 to analyze your profile and suggest careers that match your interests, skills, and values.")
     
     st.markdown("### How It Works")
     st.write("1. Select 3 interests you enjoy")
     st.write("2. Choose your current skills and skills to develop")
     st.write("3. Pick the UN SDGs you value most")
-    st.write("4. AI will analyze your profile and recommend careers")
+    st.write("4. Get career matches using three methods:")
+    st.markdown("- **Manual Algorithm**: Simple scoring based on direct matches")
+    st.markdown("- **AI Matching**: Advanced analysis using OpenAI's GPT models")
+    st.markdown("- **AI Judge**: Combined analysis that evaluates both methods")
+    
+    st.markdown("---")
+    
+    if not st.session_state.has_api_key:
+        st.warning("OpenAI API key not found. The AI features will be disabled.")
+    else:
+        st.success("OpenAI API key found. All features are enabled.")
 
 # Header
-st.title("AI Career Discovery")
-st.write("Find careers that match your interests, skills, and values using AI")
+st.title("Career Discovery Platform")
+st.write("Find careers that match your interests, skills, and values using multiple approaches")
 
 # Progress indicators
 col1, col2, col3, col4 = st.columns(4)
@@ -939,8 +1195,13 @@ elif st.session_state.step == 3:
                 st.session_state.step = 2
                 st.rerun()
         with col2:
+            if st.session_state.has_api_key:
+                button_text = "Generate All Career Matches"
+            else:
+                button_text = "Generate Manual Career Matches"
+                
             if st.button(
-                "See AI Results",
+                button_text,
                 disabled=len(st.session_state.selected_sdgs) == 0,
                 type="primary",
                 use_container_width=True
@@ -949,27 +1210,140 @@ elif st.session_state.step == 3:
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 4: Results from AI
+# Step 4: Results with method comparison
 elif st.session_state.step == 4:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
-        st.markdown('<h2 class="step-header" style="background-color: #e1f5fe; color: #0277bd;">AI-Powered Career Matches</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="step-header" style="background-color: #e1f5fe; color: #0277bd;">Career Match Results</h2>', unsafe_allow_html=True)
         
-        if not has_api_key:
-            st.warning("OpenAI API key not found in secrets. Please add it to your Streamlit secrets.toml file.")
-            if st.button("Restart", type="primary"):
-                restart()
+        # Display tabs for different methods
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            manual_active = st.session_state.active_tab == "manual"
+            manual_button_type = "primary" if manual_active else "secondary"
+            if st.button("Manual Algorithm", type=manual_button_type, use_container_width=True):
+                st.session_state.active_tab = "manual"
                 st.rerun()
-        elif not st.session_state.career_matches:
-            with st.spinner("AI is analyzing your profile and finding the best career matches..."):
-                st.session_state.career_matches = get_ai_career_matches()
+                
+        with col2:
+            ai_active = st.session_state.active_tab == "ai"
+            ai_button_type = "primary" if ai_active else "secondary"
+            ai_disabled = not st.session_state.has_api_key or not st.session_state.ai_career_matches
+            if st.button("AI Analysis", type=ai_button_type, use_container_width=True, disabled=ai_disabled):
+                st.session_state.active_tab = "ai"
                 st.rerun()
-        else:
-            st.write("Based on your interests, skills, and values, the AI recommends these career paths:")
-            
-            # Display top match with special emphasis
-            if st.session_state.career_matches:
-                top_match = st.session_state.career_matches[0]
+                
+        with col3:
+            judge_active = st.session_state.active_tab == "judge"
+            judge_button_type = "primary" if judge_active else "secondary"
+            judge_disabled = not st.session_state.has_api_key or not st.session_state.judge_career_matches
+            if st.button("AI Judge", type=judge_button_type, use_container_width=True, disabled=judge_disabled):
+                st.session_state.active_tab = "judge"
+                st.rerun()
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # Display results based on active tab
+        if st.session_state.active_tab == "manual":
+            if st.session_state.manual_career_matches:
+                st.markdown("### Manual Algorithm Results")
+                st.write("These career matches are based on a simple scoring system that weighs your interests, skills, and values.")
+                
+                # Display top match
+                top_match = st.session_state.manual_career_matches[0]
+                st.markdown("## 🏆 Top Career Match")
+                
+                # Create card for top match
+                st.markdown(
+                    f"""
+                    <div style="border: 2px solid #1976d2; border-radius: 0.5rem; margin-bottom: 2rem;">
+                        <div style="background-color: #1976d2; color: white; padding: 1rem; border-radius: 0.5rem 0.5rem 0 0;">
+                            <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
+                        </div>
+                        <div style="padding: 1rem;">
+                            <p>{top_match['description']}</p>
+                        </div>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+                
+                # Display matching elements for top match
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Display interests
+                    st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
+                    interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                           for interest in top_match['match_details']['interest_matches']])
+                    st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
+                    
+                    # Display skills
+                    st.markdown("<strong style='color: #2e7d32;'>Matching Skills:</strong>", unsafe_allow_html=True)
+                    
+                    # Current skills
+                    current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                                 for skill in top_match['match_details']['skill_matches']['current']])
+                    st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
+                    
+                with col2:
+                    # Display SDGs
+                    st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
+                    sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
+                                       for sdg_id in top_match['match_details']['sdg_matches']])
+                    st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
+                    
+                    # Desired skills
+                    st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
+                    desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                                 for skill in top_match['match_details']['skill_matches']['desired']])
+                    st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
+                
+                # Display other matches in a grid
+                st.markdown("## Other Matches")
+                
+                # Create rows with 2 cards per row
+                other_matches = st.session_state.manual_career_matches[1:]
+                
+                for i in range(0, len(other_matches), 2):
+                    cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(other_matches):
+                            career = other_matches[i + j]
+                            with cols[j]:
+                                # Display title and description with match score
+                                st.markdown(f"""
+                                <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                    <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                                        <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
+                                    </div>
+                                    <div style="padding: 0.7rem;">
+                                        <p style="font-size: 0.9rem;">{career['description']}</p>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # Display interests
+                                st.markdown("<strong style='color: #1565c0; font-size: 0.8rem;'>Matching Interests:</strong>", unsafe_allow_html=True)
+                                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                                       for interest in career['match_details']['interest_matches']])
+                                st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
+                                
+                                # Display SDGs
+                                st.markdown("<strong style='color: #5e35b1; font-size: 0.8rem;'>Matching SDGs:</strong>", unsafe_allow_html=True)
+                                sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
+                                                   for sdg_id in career['match_details']['sdg_matches']])
+                                st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
+            else:
+                st.warning("No manual matches found. Please try again with different selections.")
+        
+        elif st.session_state.active_tab == "ai":
+            if st.session_state.ai_career_matches:
+                st.markdown("### AI Analysis Results")
+                st.write("These career matches are generated using OpenAI's GPT model to provide more nuanced analysis.")
+                
+                # Display top match with special emphasis
+                top_match = st.session_state.ai_career_matches[0]
                 
                 st.markdown("## 🏆 Top Career Match")
                 
@@ -988,9 +1362,8 @@ elif st.session_state.step == 4:
                 
                 # Display matching interests separately
                 st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                interests_html = ""
-                for interest in top_match['matching_interests']:
-                    interests_html += f'<span style="background-color: #e1f5fe; color: #0277bd; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{interest}</span>'
+                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                       for interest in top_match['matching_interests']])
                 st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
                 
                 # Display matching skills separately
@@ -998,39 +1371,27 @@ elif st.session_state.step == 4:
                 
                 # Current skills
                 st.markdown("<strong style='font-size: 0.8rem;'>Current:</strong>", unsafe_allow_html=True)
-                current_skills_html = ""
-                for skill in top_match['matching_skills']['current']:
-                    current_skills_html += f'<span style="background-color: #e8f5e9; color: #2e7d32; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{skill}</span>'
+                current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                             for skill in top_match['matching_skills']['current']])
                 st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
                 
                 # Skills to develop
                 st.markdown("<strong style='font-size: 0.8rem;'>To Develop:</strong>", unsafe_allow_html=True)
-                desired_skills_html = ""
-                for skill in top_match['matching_skills']['desired']:
-                    desired_skills_html += f'<span style="background-color: #e8f5e9; color: #2e7d32; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{skill}</span>'
+                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                             for skill in top_match['matching_skills']['desired']])
                 st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
                 
                 # Display matching SDGs separately
                 st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                sdgs_html = ""
-                for sdg in top_match['matching_sdgs']:
-                    # Extract just the SDG number and format properly
-                    if ":" in sdg:
-                        sdg_parts = sdg.split(":")
-                        sdg_display = sdg_parts[0].strip()
-                        sdg_name = sdg_parts[1].strip() if len(sdg_parts) > 1 else ""
-                        sdg_text = f"{sdg_display}: {sdg_name}"
-                    else:
-                        sdg_text = sdg
-                        
-                    sdgs_html += f'<span style="background-color: #ede7f6; color: #5e35b1; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{sdg_text}</span>'
+                sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
+                                   for sdg in top_match['matching_sdgs']])
                 st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
                 
                 # Other matches
                 st.markdown("## Other Recommended Careers")
                 
                 # Create rows with 2 cards per row
-                other_matches = st.session_state.career_matches[1:]
+                other_matches = st.session_state.ai_career_matches[1:]
                 
                 for i in range(0, len(other_matches), 2):
                     cols = st.columns(2)
@@ -1053,35 +1414,178 @@ elif st.session_state.step == 4:
                                 
                                 # Display interests
                                 st.markdown("<strong style='color: #1565c0; font-size: 0.8rem;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                                interests_html = ""
-                                for interest in career['matching_interests']:
-                                    interests_html += f'<span style="background-color: #e1f5fe; color: #0277bd; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{interest}</span>'
+                                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                                       for interest in career['matching_interests']])
                                 st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
                                 
                                 # Display SDGs
                                 st.markdown("<strong style='color: #5e35b1; font-size: 0.8rem;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                                sdgs_html = ""
-                                for sdg in career['matching_sdgs'][:2]:
-                                    # Extract just the SDG number and format properly
-                                    if ":" in sdg:
-                                        sdg_parts = sdg.split(":")
-                                        sdg_display = sdg_parts[0].strip()
-                                        sdg_name = sdg_parts[1].strip() if len(sdg_parts) > 1 else ""
-                                        sdg_text = f"{sdg_display}: {sdg_name}"
-                                    else:
-                                        sdg_text = sdg
-                                        
-                                    sdgs_html += f'<span style="background-color: #ede7f6; color: #5e35b1; border-radius: 1rem; padding: 0.2rem 0.6rem; margin-right: 0.3rem; margin-bottom: 0.3rem; display: inline-block; font-size: 0.8rem;">{sdg_text}</span>'
+                                sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
+                                                   for sdg in career['matching_sdgs'][:2]])
                                 st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
             else:
-                st.error("No career matches were found. Please try again with different selections.")
-            
-            if st.button("Start Over", type="primary"):
-                restart()
-                st.rerun()
+                if st.session_state.has_api_key:
+                    st.warning("No AI matches found. Please try again with different selections.")
+                else:
+                    st.error("OpenAI API key not found. The AI analysis is unavailable.")
+        
+        elif st.session_state.active_tab == "judge":
+            if st.session_state.judge_career_matches:
+                st.markdown("### AI Judge Results")
+                st.write("These career matches combine insights from both the manual algorithm and AI analysis to provide the most accurate recommendations.")
+                
+                # Display top match with special emphasis
+                top_match = st.session_state.judge_career_matches[0]
+                
+                st.markdown("## 🏆 Top Career Match")
+                
+                # Create the main card with enhanced info
+                st.markdown(f"""
+                <div class="career-card top-match">
+                    <div class="career-header">
+                        <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
+                    </div>
+                    <div class="career-content">
+                        <p>{top_match['description']}</p>
+                        <p><strong>Expert Analysis:</strong> {top_match['explanation']}</p>
+                        <div class="verdict-card">
+                            <p><strong>Comparison:</strong> {top_match['analysis']}</p>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Display matching elements
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Display interests
+                    st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
+                    interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                           for interest in top_match['matching_interests']])
+                    st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
+                    
+                    # Current skills
+                    st.markdown("<strong style='color: #2e7d32;'>Current Skills:</strong>", unsafe_allow_html=True)
+                    current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                                 for skill in top_match['matching_skills']['current']])
+                    st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
+                
+                with col2:
+                    # Display SDGs
+                    st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
+                    sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
+                                       for sdg in top_match['matching_sdgs']])
+                    st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
+                    
+                    # Skills to develop
+                    st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
+                    desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                                 for skill in top_match['matching_skills']['desired']])
+                    st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
+                
+                # Other matches
+                st.markdown("## Other Expert Recommendations")
+                
+                # Create rows with 2 cards per row
+                other_matches = st.session_state.judge_career_matches[1:]
+                
+                for i in range(0, len(other_matches), 2):
+                    cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(other_matches):
+                            career = other_matches[i + j]
+                            with cols[j]:
+                                # Display title and description with match score
+                                st.markdown(f"""
+                                <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                    <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                                        <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
+                                    </div>
+                                    <div style="padding: 0.7rem;">
+                                        <p style="font-size: 0.9rem;">{career['description']}</p>
+                                        <p style="font-size: 0.9rem;"><strong>Expert Analysis:</strong> {career['explanation']}</p>
+                                        <div style="background-color: #fff8e1; border-radius: 0.3rem; padding: 0.5rem; font-size: 0.8rem; margin-top: 0.5rem;">
+                                            <p style="margin: 0;"><strong>Comparison:</strong> {career['analysis']}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # Display interests and SDGs in a more compact form
+                                st.markdown(f"""
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+                                    <span class="judge-badge">AI Judge</span>
+                                    <span class="interest-tag">{len(career['matching_interests'])} Interests</span>
+                                    <span class="skill-tag">{len(career['matching_skills']['current']) + len(career['matching_skills']['desired'])} Skills</span>
+                                    <span class="sdg-tag">{len(career['matching_sdgs'])} SDGs</span>
+                                </div>
+                                """, unsafe_allow_html=True)
+            else:
+                if st.session_state.has_api_key:
+                    st.warning("No AI Judge matches found. This could happen if there aren't enough matches from either the manual or AI methods.")
+                else:
+                    st.error("OpenAI API key not found. The AI Judge feature is unavailable.")
+        
+        # Comparison view (to show all three side by side)
+        if st.session_state.has_api_key and st.session_state.manual_career_matches and st.session_state.ai_career_matches and st.session_state.judge_career_matches:
+            with st.expander("View Side-by-Side Comparison of Top Matches"):
+                st.markdown("### Career Match Comparison")
+                st.write("Compare the top career match from each method to see how they differ.")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    manual_top = st.session_state.manual_career_matches[0]
+                    st.markdown(f"""
+                    <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="background-color: #e0e0e0; color: #616161; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                            <h4 style="margin: 0; font-size: 1rem;">Manual Algorithm <span style="float:right; font-size:0.8rem;">{manual_top['match_score']}%</span></h4>
+                        </div>
+                        <div style="padding: 0.7rem;">
+                            <h5>{manual_top['title']}</h5>
+                            <p style="font-size: 0.8rem;">{manual_top['description']}</p>
+                            <p style="font-size: 0.8rem;"><strong>Matching:</strong> {len(manual_top['match_details']['interest_matches'])} interests, {len(manual_top['match_details']['skill_matches']['current'])} current skills, {len(manual_top['match_details']['sdg_matches'])} SDGs</p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    ai_top = st.session_state.ai_career_matches[0]
+                    st.markdown(f"""
+                    <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="background-color: #bbdefb; color: #1565c0; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                            <h4 style="margin: 0; font-size: 1rem;">AI Analysis <span style="float:right; font-size:0.8rem;">{ai_top['match_score']}%</span></h4>
+                        </div>
+                        <div style="padding: 0.7rem;">
+                            <h5>{ai_top['title']}</h5>
+                            <p style="font-size: 0.8rem;">{ai_top['description']}</p>
+                            <p style="font-size: 0.8rem;"><strong>Key Point:</strong> {ai_top['explanation'][:100]}...</p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    judge_top = st.session_state.judge_career_matches[0]
+                    st.markdown(f"""
+                    <div style="border: 1px solid #ffd54f; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="background-color: #fff8e1; color: #ff8f00; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                            <h4 style="margin: 0; font-size: 1rem;">AI Judge <span style="float:right; font-size:0.8rem;">{judge_top['match_score']}%</span></h4>
+                        </div>
+                        <div style="padding: 0.7rem;">
+                            <h5>{judge_top['title']}</h5>
+                            <p style="font-size: 0.8rem;">{judge_top['description']}</p>
+                            <p style="font-size: 0.8rem;"><strong>Analysis:</strong> {judge_top['analysis'][:100]}...</p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        if st.button("Start Over", type="primary"):
+            restart()
+            st.rerun()
                 
         st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
-st.markdown("AI Career Discovery &copy; 2025 | Powered by OpenAI")
+st.markdown("Career Discovery Platform &copy; 2025 | Helping you find your ideal career path")
