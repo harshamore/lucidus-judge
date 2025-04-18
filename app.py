@@ -780,7 +780,7 @@ def get_ai_career_matches():
         # Get completion from OpenAI
         try:
             completion = client.chat.completions.create(
-                model="gpt-4.1-mini",  # You can use gpt-3.5-turbo for a cheaper but less powerful option
+                model="gpt-4o-mini",  # Using gpt-4o-mini for AI scoring
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system_prompt},
