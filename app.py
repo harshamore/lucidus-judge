@@ -839,7 +839,7 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
            - One set from an AI system that uses more advanced matching
 
         Your task is to:
-        1. Analyze both sets of recommendations and suggest why you picking one over the other
+        1. Analyze both sets of recommendations and suggest why you picking one over the other, dont favour one over the other be deligent
         2. Create a refined set of 6 career suggestions that represents the best matches by combining insights from both methods
         3. Provide a brief explanation of why each career made your final list
         4. Assign a match score to each career (1-100) and sort by descending score
