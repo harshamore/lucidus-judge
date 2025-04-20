@@ -146,38 +146,6 @@ st.markdown("""
         box-shadow: 0 8px 15px rgba(0,0,0,0.1);
     }
     
-    .method-tabs {
-        display: flex;
-        margin-bottom: 1rem;
-    }
-    
-    .method-tab {
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem 0.5rem 0 0;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .tab-active {
-        background-color: #1976d2;
-        color: white;
-    }
-    
-    .tab-inactive {
-        background-color: #e0e0e0;
-        color: #757575;
-    }
-    
-    /* Result comparison styling */
-    .comparison-card {
-        border: 1px solid #ddd;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background-color: #f8f9fa;
-    }
-    
     .verdict-card {
         background-color: #fff8e1;
         border: 1px solid #ffd54f;
@@ -185,43 +153,33 @@ st.markdown("""
         padding: 1rem;
         margin-top: 1rem;
     }
-    
-    .manual-badge {
-        background-color: #e0e0e0;
-        color: #616161;
-        border-radius: 1rem;
-        padding: 0.2rem 0.6rem;
-        margin-right: 0.3rem;
-        font-size: 0.7rem;
-    }
-    
-    .ai-badge {
-        background-color: #bbdefb;
-        color: #1565c0;
-        border-radius: 1rem;
-        padding: 0.2rem 0.6rem;
-        margin-right: 0.3rem;
-        font-size: 0.7rem;
-    }
-    
-    .judge-badge {
-        background-color: #fff8e1;
-        color: #ff8f00;
-        border-radius: 1rem;
-        padding: 0.2rem 0.6rem;
-        margin-right: 0.3rem;
-        font-size: 0.7rem;
-    }
-    
-    /* Progress bar messages */
-    .progress-message {
-        text-align: center;
-        font-style: italic;
-        margin-top: 0.5rem;
-        font-size: 0.9rem;
-    }
 </style>
 """, unsafe_allow_html=True)
+
+# Progress message definitions
+progress_messages = {
+    "analyzing": [
+        "Analyzing your unique constellation of interests...",
+        "Diving deep into your skill profile...",
+        "Connecting your values to potential career paths...",
+        "Exploring the intersection of your talents and passions...",
+        "Mapping your abilities to future opportunities..."
+    ],
+    "matching": [
+        "Discovering careers where you'll thrive...",
+        "Finding professional paths aligned with your values...",
+        "Matching your unique talents to meaningful work...",
+        "Uncovering careers where your skills make an impact...",
+        "Identifying roles where your strengths shine brightest..."
+    ],
+    "judging": [
+        "Our AI career counselor is crafting personalized recommendations...",
+        "Combining data and intuition to find your ideal matches...",
+        "Applying expert career knowledge to your unique profile...",
+        "Evaluating which careers offer your greatest potential...",
+        "Finalizing your personalized career matches..."
+    ]
+}
 
 # Career data with mappings to interests, skills, and SDGs
 @st.cache_data
@@ -919,84 +877,59 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
         st.error(f"Error: {str(e)}")
         return []
 
-# List of interesting progress messages for each step
-progress_messages = {
-    "analyzing": [
-        "Analyzing your unique constellation of interests...",
-        "Diving deep into your skill profile...",
-        "Connecting your values to potential career paths...",
-        "Exploring the intersection of your talents and passions...",
-        "Mapping your abilities to future opportunities..."
-    ],
-    "matching": [
-        "Discovering careers where you'll thrive...",
-        "Finding professional paths aligned with your values...",
-        "Matching your unique talents to meaningful work...",
-        "Uncovering careers where your skills make an impact...",
-        "Identifying roles where your strengths shine brightest..."
-    ],
-    "judging": [
-        "Our AI career counselor is crafting personalized recommendations...",
-        "Combining data and intuition to find your ideal matches...",
-        "Applying expert career knowledge to your unique profile...",
-        "Evaluating which careers offer your greatest potential...",
-        "Finalizing your personalized career matches..."
-    ]
-}
-
 def go_to_next_step():
     if st.session_state.step == 1 and len(st.session_state.selected_interests) == 3:
         st.session_state.step = 2
     elif st.session_state.step == 2 and len(st.session_state.current_skills) == 3 and len(st.session_state.desired_skills) == 3:
         st.session_state.step = 3
     elif st.session_state.step == 3 and len(st.session_state.selected_sdgs) > 0:
-        # Set up progress bar for career matching
-        progress_bar = st.progress(0)
-        progress_text = st.empty()
-        
-        # Generate career matches using all methods with progress updates
-        if st.session_state.has_api_key:
-            # Step 1: Manual matching (20%)
-            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['analyzing'])}</div>", unsafe_allow_html=True)
+        # Generate career matches using all methods
+        with st.spinner("Finding your ideal career matches..."):
+            # Set up progress bar for career matching
+            progress_bar = st.progress(0)
+            progress_text = st.empty()
+            
+            # First phase: analyze profile
+            progress_text.markdown(f"<div style='text-align: center; font-style: italic;'>{random.choice(progress_messages['analyzing'])}</div>", unsafe_allow_html=True)
             for i in range(20):
                 progress_bar.progress(i)
                 time.sleep(0.05)
-            
-            st.session_state.manual_career_matches = match_careers_manually()
-            
-            # Step 2: AI matching (50%)
-            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['matching'])}</div>", unsafe_allow_html=True)
-            for i in range(20, 50):
-                progress_bar.progress(i)
-                time.sleep(0.05)
-            
-            st.session_state.ai_career_matches = get_ai_career_matches()
-            
-            # Step 3: AI Judge (100%)
-            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['judging'])}</div>", unsafe_allow_html=True)
-            for i in range(50, 100):
-                progress_bar.progress(i)
-                time.sleep(0.05)
-            
-            if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
-                st.session_state.judge_career_matches = get_ai_judge_career_matches(
-                    st.session_state.manual_career_matches, 
-                    st.session_state.ai_career_matches
-                )
                 
-            progress_bar.progress(100)
-            time.sleep(0.5)
-        else:
-            # If no API key, just use manual matching
-            progress_text.markdown(f"<div class='progress-message'>Finding your ideal career matches...</div>", unsafe_allow_html=True)
-            for i in range(100):
-                progress_bar.progress(i)
-                time.sleep(0.05)
-            
+            # Get manual matches
             st.session_state.manual_career_matches = match_careers_manually()
+            
+            if st.session_state.has_api_key:
+                # Second phase: matching careers
+                progress_text.markdown(f"<div style='text-align: center; font-style: italic;'>{random.choice(progress_messages['matching'])}</div>", unsafe_allow_html=True)
+                for i in range(20, 50):
+                    progress_bar.progress(i)
+                    time.sleep(0.05)
+                
+                # Get AI matches
+                st.session_state.ai_career_matches = get_ai_career_matches()
+                
+                # Third phase: AI Judge evaluation
+                progress_text.markdown(f"<div style='text-align: center; font-style: italic;'>{random.choice(progress_messages['judging'])}</div>", unsafe_allow_html=True)
+                for i in range(50, 100):
+                    progress_bar.progress(i)
+                    time.sleep(0.05)
+                
+                # Get AI Judge matches if both other methods have results
+                if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
+                    st.session_state.judge_career_matches = get_ai_judge_career_matches(
+                        st.session_state.manual_career_matches, 
+                        st.session_state.ai_career_matches
+                    )
+            else:
+                # If no API key, just animate progress for manual matching
+                for i in range(20, 100):
+                    progress_bar.progress(i)
+                    time.sleep(0.02)
+            
+            # Finish the progress bar
             progress_bar.progress(100)
             time.sleep(0.5)
-        
+            
         st.session_state.step = 4
 
 def restart():
@@ -1278,10 +1211,10 @@ elif st.session_state.step == 4:
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
         st.markdown('<h2 class="step-header" style="background-color: #e1f5fe; color: #0277bd;">Your Ideal Career Matches</h2>', unsafe_allow_html=True)
         
-        # Check if we have AI Judge results
+        # Only show AI Judge results if available
         if st.session_state.has_api_key and st.session_state.judge_career_matches:
-            st.markdown("### Expert AI Career Recommendations")
-            st.write("Our AI Career Counselor has analyzed your profile to find careers where you'll thrive.")
+            st.markdown("### AI Career Counselor Recommendations")
+            st.write("Based on your unique profile, our AI Career Counselor has identified these ideal career matches for you.")
             
             # Display top match with special emphasis
             top_match = st.session_state.judge_career_matches[0]
@@ -1367,7 +1300,7 @@ elif st.session_state.step == 4:
                             </div>
                             """, unsafe_allow_html=True)
         
-        # If we don't have AI Judge results but have manual results
+        # If we don't have AI Judge results but have manual results, show those instead
         elif st.session_state.manual_career_matches:
             st.markdown("### Career Match Results")
             st.write("Based on your selections, we've found these career matches for you.")
