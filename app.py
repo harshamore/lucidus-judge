@@ -545,8 +545,6 @@ if 'selected_interests' not in st.session_state:
     st.session_state.selected_interests = []
 if 'current_skills' not in st.session_state:
     st.session_state.current_skills = []
-if 'desired_skills' not in st.session_state:
-    st.session_state.desired_skills = []
 if 'selected_sdgs' not in st.session_state:
     st.session_state.selected_sdgs = []
 if 'manual_career_matches' not in st.session_state:
@@ -589,13 +587,6 @@ def handle_current_skill_select(skill):
         if len(st.session_state.current_skills) < 3:
             st.session_state.current_skills.append(skill)
 
-def handle_desired_skill_select(skill):
-    if skill in st.session_state.desired_skills:
-        st.session_state.desired_skills.remove(skill)
-    else:
-        if len(st.session_state.desired_skills) < 3:
-            st.session_state.desired_skills.append(skill)
-
 def handle_sdg_select(sdg_id):
     if sdg_id in st.session_state.selected_sdgs:
         st.session_state.selected_sdgs.remove(sdg_id)
@@ -616,8 +607,7 @@ def match_careers_manually():
         match_details = {
             "interest_matches": [],
             "skill_matches": {
-                "current": [],
-                "desired": []
+                "current": []
             },
             "sdg_matches": []
         }
@@ -633,12 +623,6 @@ def match_careers_manually():
             if skill in career["skills"]:
                 score += 2
                 match_details["skill_matches"]["current"].append(skill)
-        
-        # Score for matching desired skills (lower weight than current)
-        for skill in st.session_state.desired_skills:
-            if skill in career["skills"]:
-                score += 1
-                match_details["skill_matches"]["desired"].append(skill)
         
         # Score for matching SDGs (high weight - values are important)
         for sdg_id in st.session_state.selected_sdgs:
@@ -675,7 +659,6 @@ def get_ai_career_matches():
         # Format interests, skills, and SDGs
         interests_str = ", ".join(st.session_state.selected_interests)
         current_skills_str = ", ".join(st.session_state.current_skills)
-        desired_skills_str = ", ".join(st.session_state.desired_skills)
         sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
         
         # Construct the career data
@@ -697,7 +680,7 @@ def get_ai_career_matches():
         system_prompt = f"""You are a career counselor AI that helps students find the best career matches based on their interests, skills, and values.
 
         You'll be given:
-        1. A student's interests, current skills, desired skills, and values (UN SDGs they care about)
+        1. A student's interests, skills, and values (UN SDGs they care about)
         2. A list of potential careers with descriptions
 
         Your task is to:
@@ -717,7 +700,6 @@ def get_ai_career_matches():
 
         Interests: {interests_str}
         Current Skills: {current_skills_str}
-        Skills to Develop: {desired_skills_str}
         Values (SDGs): {sdgs_str}
 
         Here are the available careers to match from:
@@ -733,7 +715,7 @@ def get_ai_career_matches():
               "match_score": score_between_1_and_100,
               "explanation": "Detailed explanation of why this is a good match",
               "matching_interests": ["interest1", "interest2"],
-              "matching_skills": {{"current": ["skill1", "skill2"], "desired": ["skill3"]}},
+              "matching_skills": {{"current": ["skill1", "skill2"]}},
               "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
             }},
             ...
@@ -785,7 +767,6 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
         # Format interests, skills, and SDGs for context
         interests_str = ", ".join(st.session_state.selected_interests)
         current_skills_str = ", ".join(st.session_state.current_skills)
-        desired_skills_str = ", ".join(st.session_state.desired_skills)
         sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
         
         # Prepare manual matches for the prompt
@@ -818,7 +799,6 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
 
         Interests: {interests_str}
         Current Skills: {current_skills_str}
-        Skills to Develop: {desired_skills_str}
         Values (SDGs): {sdgs_str}
 
         Here are the career matches from the manual algorithm:
@@ -838,7 +818,7 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
               "explanation": "Your expert reasoning on why this is a good match",
               "analysis": "Brief comparison of how this career was ranked in both systems",
               "matching_interests": ["interest1", "interest2"],
-              "matching_skills": {{"current": ["skill1", "skill2"], "desired": ["skill3"]}},
+              "matching_skills": {{"current": ["skill1", "skill2"]}},
               "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
             }},
             ...
@@ -880,7 +860,7 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
 def go_to_next_step():
     if st.session_state.step == 1 and len(st.session_state.selected_interests) == 3:
         st.session_state.step = 2
-    elif st.session_state.step == 2 and len(st.session_state.current_skills) == 3 and len(st.session_state.desired_skills) == 3:
+    elif st.session_state.step == 2 and len(st.session_state.current_skills) == 3:
         st.session_state.step = 3
     elif st.session_state.step == 3 and len(st.session_state.selected_sdgs) > 0:
         # Generate career matches using all methods
@@ -936,7 +916,6 @@ def restart():
     st.session_state.step = 1
     st.session_state.selected_interests = []
     st.session_state.current_skills = []
-    st.session_state.desired_skills = []
     st.session_state.selected_sdgs = []
     st.session_state.manual_career_matches = []
     st.session_state.ai_career_matches = []
@@ -952,7 +931,7 @@ with st.sidebar:
     
     st.markdown("### How It Works")
     st.write("1. Select 3 interests you enjoy")
-    st.write("2. Choose your current skills and skills to develop")
+    st.write("2. Choose your current skills")
     st.write("3. Pick the UN SDGs you value most")
     st.write("4. Get expert career recommendations from our AI Career Counselor")
     
@@ -1095,45 +1074,7 @@ elif st.session_state.step == 2:
                 st.markdown(f"- {skill}")
         
         st.markdown("---")
-        
-        # Desired skills selection
-        st.markdown("### Select 3 skills you'd like to improve:")
-        for category, skills in skill_categories.items():
-            with st.expander(f"{category}"):
-                col1, col2 = st.columns(2)
-                
-                half_length = len(skills) // 2 + len(skills) % 2
-                
-                for i, skill in enumerate(skills[:half_length]):
-                    with col1:
-                        selected = skill in st.session_state.desired_skills
-                        if st.button(
-                            f"{'✓ ' if selected else ''}{skill}",
-                            key=f"desired_{skill}",
-                            type="primary" if selected else "secondary",
-                            use_container_width=True
-                        ):
-                            handle_desired_skill_select(skill)
-                            st.rerun()
-                
-                for i, skill in enumerate(skills[half_length:]):
-                    with col2:
-                        selected = skill in st.session_state.desired_skills
-                        if st.button(
-                            f"{'✓ ' if selected else ''}{skill}",
-                            key=f"desired_{skill}",
-                            type="primary" if selected else "secondary",
-                            use_container_width=True
-                        ):
-                            handle_desired_skill_select(skill)
-                            st.rerun()
-        
-        st.write(f"Selected: {len(st.session_state.desired_skills)}/3")
-        if st.session_state.desired_skills:
-            st.write("Skills you want to improve:")
-            for skill in st.session_state.desired_skills:
-                st.markdown(f"- {skill}")
-        
+          
         col1, col2 = st.columns([1, 3])
         with col1:
             if st.button("Back", use_container_width=True):
@@ -1142,7 +1083,7 @@ elif st.session_state.step == 2:
         with col2:
             if st.button(
                 "Next: Values",
-                disabled=len(st.session_state.current_skills) != 3 or len(st.session_state.desired_skills) != 3,
+                disabled=len(st.session_state.current_skills) != 3,
                 type="primary",
                 use_container_width=True
             ):
@@ -1260,12 +1201,7 @@ elif st.session_state.step == 4:
                                    for sdg in top_match['matching_sdgs']])
                 st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
                 
-                # Skills to develop
-                st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
-                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                             for skill in top_match['matching_skills']['desired']])
-                st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
-            
+          
             # Other matches
             st.markdown("## Other Strong Career Matches")
             
@@ -1295,7 +1231,7 @@ elif st.session_state.step == 4:
                             st.markdown(f"""
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
                                 <span class="interest-tag">{len(career['matching_interests'])} Interests</span>
-                                <span class="skill-tag">{len(career['matching_skills']['current']) + len(career['matching_skills']['desired'])} Skills</span>
+                                <span class="skill-tag">{len(career['matching_skills']['current'])} Skills</span>
                                 <span class="sdg-tag">{len(career['matching_sdgs'])} SDGs</span>
                             </div>
                             """, unsafe_allow_html=True)
@@ -1348,12 +1284,6 @@ elif st.session_state.step == 4:
                 sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
                                    for sdg_id in top_match['match_details']['sdg_matches']])
                 st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
-                
-                # Desired skills
-                st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
-                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                             for skill in top_match['match_details']['skill_matches']['desired']])
-                st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
             
             # Display other matches in a grid
             st.markdown("## Other Matches")
