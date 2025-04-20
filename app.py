@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import json
 import openai
+import time
+import random
 from openai import OpenAI
 
 # Set page configuration
@@ -209,6 +211,14 @@ st.markdown("""
         padding: 0.2rem 0.6rem;
         margin-right: 0.3rem;
         font-size: 0.7rem;
+    }
+    
+    /* Progress bar messages */
+    .progress-message {
+        text-align: center;
+        font-style: italic;
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -588,7 +598,7 @@ if 'ai_career_matches' not in st.session_state:
 if 'judge_career_matches' not in st.session_state:
     st.session_state.judge_career_matches = []
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "manual"  # Default to manual tab
+    st.session_state.active_tab = "judge"  # Default to judge tab
 if 'has_api_key' not in st.session_state:
     st.session_state.has_api_key = False
 
@@ -909,27 +919,83 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
         st.error(f"Error: {str(e)}")
         return []
 
+# List of interesting progress messages for each step
+progress_messages = {
+    "analyzing": [
+        "Analyzing your unique constellation of interests...",
+        "Diving deep into your skill profile...",
+        "Connecting your values to potential career paths...",
+        "Exploring the intersection of your talents and passions...",
+        "Mapping your abilities to future opportunities..."
+    ],
+    "matching": [
+        "Discovering careers where you'll thrive...",
+        "Finding professional paths aligned with your values...",
+        "Matching your unique talents to meaningful work...",
+        "Uncovering careers where your skills make an impact...",
+        "Identifying roles where your strengths shine brightest..."
+    ],
+    "judging": [
+        "Our AI career counselor is crafting personalized recommendations...",
+        "Combining data and intuition to find your ideal matches...",
+        "Applying expert career knowledge to your unique profile...",
+        "Evaluating which careers offer your greatest potential...",
+        "Finalizing your personalized career matches..."
+    ]
+}
+
 def go_to_next_step():
     if st.session_state.step == 1 and len(st.session_state.selected_interests) == 3:
         st.session_state.step = 2
     elif st.session_state.step == 2 and len(st.session_state.current_skills) == 3 and len(st.session_state.desired_skills) == 3:
         st.session_state.step = 3
     elif st.session_state.step == 3 and len(st.session_state.selected_sdgs) > 0:
-        # Generate career matches using all methods
-        with st.spinner("Generating career matches..."):
-            # Get manual matches
+        # Set up progress bar for career matching
+        progress_bar = st.progress(0)
+        progress_text = st.empty()
+        
+        # Generate career matches using all methods with progress updates
+        if st.session_state.has_api_key:
+            # Step 1: Manual matching (20%)
+            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['analyzing'])}</div>", unsafe_allow_html=True)
+            for i in range(20):
+                progress_bar.progress(i)
+                time.sleep(0.05)
+            
             st.session_state.manual_career_matches = match_careers_manually()
             
-            # Get AI matches if API key is available
-            if st.session_state.has_api_key:
-                st.session_state.ai_career_matches = get_ai_career_matches()
+            # Step 2: AI matching (50%)
+            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['matching'])}</div>", unsafe_allow_html=True)
+            for i in range(20, 50):
+                progress_bar.progress(i)
+                time.sleep(0.05)
+            
+            st.session_state.ai_career_matches = get_ai_career_matches()
+            
+            # Step 3: AI Judge (100%)
+            progress_text.markdown(f"<div class='progress-message'>{random.choice(progress_messages['judging'])}</div>", unsafe_allow_html=True)
+            for i in range(50, 100):
+                progress_bar.progress(i)
+                time.sleep(0.05)
+            
+            if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
+                st.session_state.judge_career_matches = get_ai_judge_career_matches(
+                    st.session_state.manual_career_matches, 
+                    st.session_state.ai_career_matches
+                )
                 
-                # Get AI Judge matches if both other methods have results
-                if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
-                    st.session_state.judge_career_matches = get_ai_judge_career_matches(
-                        st.session_state.manual_career_matches, 
-                        st.session_state.ai_career_matches
-                    )
+            progress_bar.progress(100)
+            time.sleep(0.5)
+        else:
+            # If no API key, just use manual matching
+            progress_text.markdown(f"<div class='progress-message'>Finding your ideal career matches...</div>", unsafe_allow_html=True)
+            for i in range(100):
+                progress_bar.progress(i)
+                time.sleep(0.05)
+            
+            st.session_state.manual_career_matches = match_careers_manually()
+            progress_bar.progress(100)
+            time.sleep(0.5)
         
         st.session_state.step = 4
 
@@ -942,7 +1008,7 @@ def restart():
     st.session_state.manual_career_matches = []
     st.session_state.ai_career_matches = []
     st.session_state.judge_career_matches = []
-    st.session_state.active_tab = "manual"
+    st.session_state.active_tab = "judge"
 
 # Sidebar with info about the app
 with st.sidebar:
@@ -955,21 +1021,18 @@ with st.sidebar:
     st.write("1. Select 3 interests you enjoy")
     st.write("2. Choose your current skills and skills to develop")
     st.write("3. Pick the UN SDGs you value most")
-    st.write("4. Get career matches using three methods:")
-    st.markdown("- **Manual Algorithm**: Simple scoring based on direct matches")
-    st.markdown("- **AI Matching**: Advanced analysis using OpenAI's GPT models")
-    st.markdown("- **AI Judge**: Combined analysis that evaluates both methods")
+    st.write("4. Get expert career recommendations from our AI Career Counselor")
     
     st.markdown("---")
     
     if not st.session_state.has_api_key:
-        st.warning("OpenAI API key not found. The AI features will be disabled.")
+        st.warning("OpenAI API key not found. Only manual matching will be available.")
     else:
-        st.success("OpenAI API key found. All features are enabled.")
+        st.success("OpenAI API key found. AI Career Counselor is ready.")
 
 # Header
 st.title("Career Discovery Platform")
-st.write("Find careers that match your interests, skills, and values using multiple approaches")
+st.write("Find careers that match your interests, skills, and values using our expert AI Career Counselor")
 
 # Progress indicators
 col1, col2, col3, col4 = st.columns(4)
@@ -1195,9 +1258,9 @@ elif st.session_state.step == 3:
                 st.rerun()
         with col2:
             if st.session_state.has_api_key:
-                button_text = "Generate All Career Matches"
+                button_text = "Find Your Ideal Careers"
             else:
-                button_text = "Generate Manual Career Matches"
+                button_text = "Generate Career Matches"
                 
             if st.button(
                 button_text,
@@ -1209,375 +1272,184 @@ elif st.session_state.step == 3:
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 4: Results with method comparison
+# Step 4: Results - Only show AI Judge results
 elif st.session_state.step == 4:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
-        st.markdown('<h2 class="step-header" style="background-color: #e1f5fe; color: #0277bd;">Career Match Results</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="step-header" style="background-color: #e1f5fe; color: #0277bd;">Your Ideal Career Matches</h2>', unsafe_allow_html=True)
         
-        # Display tabs for different methods
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            manual_active = st.session_state.active_tab == "manual"
-            manual_button_type = "primary" if manual_active else "secondary"
-            if st.button("Manual Algorithm", type=manual_button_type, use_container_width=True):
-                st.session_state.active_tab = "manual"
-                st.rerun()
-                
-        with col2:
-            ai_active = st.session_state.active_tab == "ai"
-            ai_button_type = "primary" if ai_active else "secondary"
-            ai_disabled = not st.session_state.has_api_key or not st.session_state.ai_career_matches
-            if st.button("AI Analysis", type=ai_button_type, use_container_width=True, disabled=ai_disabled):
-                st.session_state.active_tab = "ai"
-                st.rerun()
-                
-        with col3:
-            judge_active = st.session_state.active_tab == "judge"
-            judge_button_type = "primary" if judge_active else "secondary"
-            judge_disabled = not st.session_state.has_api_key or not st.session_state.judge_career_matches
-            if st.button("AI Judge", type=judge_button_type, use_container_width=True, disabled=judge_disabled):
-                st.session_state.active_tab = "judge"
-                st.rerun()
-        
-        st.markdown("<hr>", unsafe_allow_html=True)
-        
-        # Display results based on active tab
-        if st.session_state.active_tab == "manual":
-            if st.session_state.manual_career_matches:
-                st.markdown("### Manual Algorithm Results")
-                st.write("These career matches are based on a simple scoring system that weighs your interests, skills, and values.")
-                
-                # Display top match
-                top_match = st.session_state.manual_career_matches[0]
-                st.markdown("## 🏆 Top Career Match")
-                
-                # Create card for top match
-                st.markdown(
-                    f"""
-                    <div style="border: 2px solid #1976d2; border-radius: 0.5rem; margin-bottom: 2rem;">
-                        <div style="background-color: #1976d2; color: white; padding: 1rem; border-radius: 0.5rem 0.5rem 0 0;">
-                            <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
-                        </div>
-                        <div style="padding: 1rem;">
-                            <p>{top_match['description']}</p>
-                        </div>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
-                
-                # Display matching elements for top match
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Display interests
-                    st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                    interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
-                                           for interest in top_match['match_details']['interest_matches']])
-                    st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
-                    
-                    # Display skills
-                    st.markdown("<strong style='color: #2e7d32;'>Matching Skills:</strong>", unsafe_allow_html=True)
-                    
-                    # Current skills
-                    current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                                 for skill in top_match['match_details']['skill_matches']['current']])
-                    st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
-                    
-                with col2:
-                    # Display SDGs
-                    st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                    sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
-                                       for sdg_id in top_match['match_details']['sdg_matches']])
-                    st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
-                    
-                    # Desired skills
-                    st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
-                    desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                                 for skill in top_match['match_details']['skill_matches']['desired']])
-                    st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
-                
-                # Display other matches in a grid
-                st.markdown("## Other Matches")
-                
-                # Create rows with 2 cards per row
-                other_matches = st.session_state.manual_career_matches[1:]
-                
-                for i in range(0, len(other_matches), 2):
-                    cols = st.columns(2)
-                    for j in range(2):
-                        if i + j < len(other_matches):
-                            career = other_matches[i + j]
-                            with cols[j]:
-                                # Display title and description with match score
-                                st.markdown(f"""
-                                <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                    <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                                        <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
-                                    </div>
-                                    <div style="padding: 0.7rem;">
-                                        <p style="font-size: 0.9rem;">{career['description']}</p>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # Display interests
-                                st.markdown("<strong style='color: #1565c0; font-size: 0.8rem;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
-                                                       for interest in career['match_details']['interest_matches']])
-                                st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
-                                
-                                # Display SDGs
-                                st.markdown("<strong style='color: #5e35b1; font-size: 0.8rem;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                                sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
-                                                   for sdg_id in career['match_details']['sdg_matches']])
-                                st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
-            else:
-                st.warning("No manual matches found. Please try again with different selections.")
-        
-        elif st.session_state.active_tab == "ai":
-            if st.session_state.ai_career_matches:
-                st.markdown("### AI Analysis Results")
-                st.write("These career matches are generated using OpenAI's GPT model to provide more nuanced analysis.")
-                
-                # Display top match with special emphasis
-                top_match = st.session_state.ai_career_matches[0]
-                
-                st.markdown("## 🏆 Top Career Match")
-                
-                # Create the main card first with just the basic info
-                st.markdown(f"""
-                <div class="career-card top-match">
-                    <div class="career-header">
-                        <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
-                    </div>
-                    <div class="career-content">
-                        <p>{top_match['description']}</p>
-                        <p><strong>Why this fits you:</strong> {top_match['explanation']}</p>
+        # Check if we have AI Judge results
+        if st.session_state.has_api_key and st.session_state.judge_career_matches:
+            st.markdown("### Expert AI Career Recommendations")
+            st.write("Our AI Career Counselor has analyzed your profile to find careers where you'll thrive.")
+            
+            # Display top match with special emphasis
+            top_match = st.session_state.judge_career_matches[0]
+            
+            st.markdown("## 🏆 Top Career Match")
+            
+            # Create the main card with enhanced info
+            st.markdown(f"""
+            <div class="career-card top-match">
+                <div class="career-header">
+                    <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
+                </div>
+                <div class="career-content">
+                    <p>{top_match['description']}</p>
+                    <p><strong>Expert Analysis:</strong> {top_match['explanation']}</p>
+                    <div class="verdict-card">
+                        <p><strong>Why This Stands Out:</strong> {top_match['analysis']}</p>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                # Display matching interests separately
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display matching elements
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Display interests
                 st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
                 interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
                                        for interest in top_match['matching_interests']])
                 st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
                 
-                # Display matching skills separately
-                st.markdown("<strong style='color: #2e7d32;'>Matching Skills:</strong>", unsafe_allow_html=True)
-                
                 # Current skills
-                st.markdown("<strong style='font-size: 0.8rem;'>Current:</strong>", unsafe_allow_html=True)
+                st.markdown("<strong style='color: #2e7d32;'>Current Skills:</strong>", unsafe_allow_html=True)
                 current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
                                              for skill in top_match['matching_skills']['current']])
                 st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
-                
-                # Skills to develop
-                st.markdown("<strong style='font-size: 0.8rem;'>To Develop:</strong>", unsafe_allow_html=True)
-                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                             for skill in top_match['matching_skills']['desired']])
-                st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
-                
-                # Display matching SDGs separately
+            
+            with col2:
+                # Display SDGs
                 st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
                 sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
                                    for sdg in top_match['matching_sdgs']])
                 st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
                 
-                # Other matches
-                st.markdown("## Other Recommended Careers")
-                
-                # Create rows with 2 cards per row
-                other_matches = st.session_state.ai_career_matches[1:]
-                
-                for i in range(0, len(other_matches), 2):
-                    cols = st.columns(2)
-                    for j in range(2):
-                        if i + j < len(other_matches):
-                            career = other_matches[i + j]
-                            with cols[j]:
-                                # Display title and description with match score
-                                st.markdown(f"""
-                                <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                    <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                                        <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
-                                    </div>
-                                    <div style="padding: 0.7rem;">
-                                        <p style="font-size: 0.9rem;">{career['description']}</p>
-                                        <p style="font-size: 0.9rem;"><strong>Why this fits you:</strong> {career['explanation']}</p>
-                                    </div>
+                # Skills to develop
+                st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
+                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                             for skill in top_match['matching_skills']['desired']])
+                st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
+            
+            # Other matches
+            st.markdown("## Other Strong Career Matches")
+            
+            # Create rows with 2 cards per row
+            other_matches = st.session_state.judge_career_matches[1:]
+            
+            for i in range(0, len(other_matches), 2):
+                cols = st.columns(2)
+                for j in range(2):
+                    if i + j < len(other_matches):
+                        career = other_matches[i + j]
+                        with cols[j]:
+                            # Display title and description with match score
+                            st.markdown(f"""
+                            <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                                    <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
                                 </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # Display interests
-                                st.markdown("<strong style='color: #1565c0; font-size: 0.8rem;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
-                                                       for interest in career['matching_interests']])
-                                st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
-                                
-                                # Display SDGs
-                                st.markdown("<strong style='color: #5e35b1; font-size: 0.8rem;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                                sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
-                                                   for sdg in career['matching_sdgs'][:2]])
-                                st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
-            else:
-                if st.session_state.has_api_key:
-                    st.warning("No AI matches found. Please try again with different selections.")
-                else:
-                    st.error("OpenAI API key not found. The AI analysis is unavailable.")
+                                <div style="padding: 0.7rem;">
+                                    <p style="font-size: 0.9rem;">{career['description']}</p>
+                                    <p style="font-size: 0.9rem;"><strong>Why This Fits You:</strong> {career['explanation']}</p>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Display tags for interests, skills, and SDGs
+                            st.markdown(f"""
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+                                <span class="interest-tag">{len(career['matching_interests'])} Interests</span>
+                                <span class="skill-tag">{len(career['matching_skills']['current']) + len(career['matching_skills']['desired'])} Skills</span>
+                                <span class="sdg-tag">{len(career['matching_sdgs'])} SDGs</span>
+                            </div>
+                            """, unsafe_allow_html=True)
         
-        elif st.session_state.active_tab == "judge":
-            if st.session_state.judge_career_matches:
-                st.markdown("### AI Judge Results")
-                st.write("These career matches combine insights from both the manual algorithm and AI analysis to provide the most accurate recommendations.")
-                
-                # Display top match with special emphasis
-                top_match = st.session_state.judge_career_matches[0]
-                
-                st.markdown("## 🏆 Top Career Match")
-                
-                # Create the main card with enhanced info
-                st.markdown(f"""
-                <div class="career-card top-match">
-                    <div class="career-header">
+        # If we don't have AI Judge results but have manual results
+        elif st.session_state.manual_career_matches:
+            st.markdown("### Career Match Results")
+            st.write("Based on your selections, we've found these career matches for you.")
+            
+            # Display top match
+            top_match = st.session_state.manual_career_matches[0]
+            st.markdown("## 🏆 Top Career Match")
+            
+            # Create card for top match
+            st.markdown(
+                f"""
+                <div style="border: 2px solid #1976d2; border-radius: 0.5rem; margin-bottom: 2rem;">
+                    <div style="background-color: #1976d2; color: white; padding: 1rem; border-radius: 0.5rem 0.5rem 0 0;">
                         <h3 style="margin: 0;">{top_match['title']} <span style="float:right; font-size:0.9rem;">Match Score: {top_match['match_score']}%</span></h3>
                     </div>
-                    <div class="career-content">
+                    <div style="padding: 1rem;">
                         <p>{top_match['description']}</p>
-                        <p><strong>Expert Analysis:</strong> {top_match['explanation']}</p>
-                        <div class="verdict-card">
-                            <p><strong>Comparison:</strong> {top_match['analysis']}</p>
-                        </div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            # Display matching elements for top match
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Display interests
+                st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
+                interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
+                                       for interest in top_match['match_details']['interest_matches']])
+                st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
                 
-                # Display matching elements
-                col1, col2 = st.columns(2)
+                # Display skills
+                st.markdown("<strong style='color: #2e7d32;'>Matching Skills:</strong>", unsafe_allow_html=True)
                 
-                with col1:
-                    # Display interests
-                    st.markdown("<strong style='color: #1565c0;'>Matching Interests:</strong>", unsafe_allow_html=True)
-                    interests_html = " ".join([f"<span class='interest-tag'>{interest}</span>" 
-                                           for interest in top_match['matching_interests']])
-                    st.markdown(f"<div>{interests_html}</div>", unsafe_allow_html=True)
-                    
-                    # Current skills
-                    st.markdown("<strong style='color: #2e7d32;'>Current Skills:</strong>", unsafe_allow_html=True)
-                    current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                                 for skill in top_match['matching_skills']['current']])
-                    st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
+                # Current skills
+                current_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                             for skill in top_match['match_details']['skill_matches']['current']])
+                st.markdown(f"<div>{current_skills_html}</div>", unsafe_allow_html=True)
                 
-                with col2:
-                    # Display SDGs
-                    st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
-                    sdgs_html = " ".join([f"<span class='sdg-tag'>{sdg}</span>" 
-                                       for sdg in top_match['matching_sdgs']])
-                    st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
-                    
-                    # Skills to develop
-                    st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
-                    desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
-                                                 for skill in top_match['matching_skills']['desired']])
-                    st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
+            with col2:
+                # Display SDGs
+                st.markdown("<strong style='color: #5e35b1;'>Matching SDGs:</strong>", unsafe_allow_html=True)
+                sdgs_html = " ".join([f"<span class='sdg-tag'>SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}</span>" 
+                                   for sdg_id in top_match['match_details']['sdg_matches']])
+                st.markdown(f"<div>{sdgs_html}</div>", unsafe_allow_html=True)
                 
-                # Other matches
-                st.markdown("## Other Expert Recommendations")
-                
-                # Create rows with 2 cards per row
-                other_matches = st.session_state.judge_career_matches[1:]
-                
-                for i in range(0, len(other_matches), 2):
-                    cols = st.columns(2)
-                    for j in range(2):
-                        if i + j < len(other_matches):
-                            career = other_matches[i + j]
-                            with cols[j]:
-                                # Display title and description with match score
-                                st.markdown(f"""
-                                <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                    <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                                        <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
-                                    </div>
-                                    <div style="padding: 0.7rem;">
-                                        <p style="font-size: 0.9rem;">{career['description']}</p>
-                                        <p style="font-size: 0.9rem;"><strong>Expert Analysis:</strong> {career['explanation']}</p>
-                                        <div style="background-color: #fff8e1; border-radius: 0.3rem; padding: 0.5rem; font-size: 0.8rem; margin-top: 0.5rem;">
-                                            <p style="margin: 0;"><strong>Comparison:</strong> {career['analysis']}</p>
-                                        </div>
-                                    </div>
+                # Desired skills
+                st.markdown("<strong style='color: #2e7d32;'>Skills to Develop:</strong>", unsafe_allow_html=True)
+                desired_skills_html = " ".join([f"<span class='skill-tag'>{skill}</span>" 
+                                             for skill in top_match['match_details']['skill_matches']['desired']])
+                st.markdown(f"<div>{desired_skills_html}</div>", unsafe_allow_html=True)
+            
+            # Display other matches in a grid
+            st.markdown("## Other Matches")
+            
+            # Create rows with 2 cards per row
+            other_matches = st.session_state.manual_career_matches[1:]
+            
+            for i in range(0, len(other_matches), 2):
+                cols = st.columns(2)
+                for j in range(2):
+                    if i + j < len(other_matches):
+                        career = other_matches[i + j]
+                        with cols[j]:
+                            # Display title and description with match score
+                            st.markdown(f"""
+                            <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                <div style="background-color: #1976d2; color: white; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
+                                    <h4 style="margin: 0; font-size: 1.1rem;">{career['title']} <span style="float:right; font-size:0.8rem;">Match: {career['match_score']}%</span></h4>
                                 </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # Display interests and SDGs in a more compact form
-                                st.markdown(f"""
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
-                                    <span class="judge-badge">AI Judge</span>
-                                    <span class="interest-tag">{len(career['matching_interests'])} Interests</span>
-                                    <span class="skill-tag">{len(career['matching_skills']['current']) + len(career['matching_skills']['desired'])} Skills</span>
-                                    <span class="sdg-tag">{len(career['matching_sdgs'])} SDGs</span>
+                                <div style="padding: 0.7rem;">
+                                    <p style="font-size: 0.9rem;">{career['description']}</p>
                                 </div>
-                                """, unsafe_allow_html=True)
+                            </div>
+                            """, unsafe_allow_html=True)
+        else:
+            if st.session_state.has_api_key:
+                st.warning("No career matches found. Please try again with different selections.")
             else:
-                if st.session_state.has_api_key:
-                    st.warning("No AI Judge matches found. This could happen if there aren't enough matches from either the manual or AI methods.")
-                else:
-                    st.error("OpenAI API key not found. The AI Judge feature is unavailable.")
-        
-        # Comparison view (to show all three side by side)
-        if st.session_state.has_api_key and st.session_state.manual_career_matches and st.session_state.ai_career_matches and st.session_state.judge_career_matches:
-            with st.expander("View Side-by-Side Comparison of Top Matches"):
-                st.markdown("### Career Match Comparison")
-                st.write("Compare the top career match from each method to see how they differ.")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    manual_top = st.session_state.manual_career_matches[0]
-                    st.markdown(f"""
-                    <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="background-color: #e0e0e0; color: #616161; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                            <h4 style="margin: 0; font-size: 1rem;">Manual Algorithm <span style="float:right; font-size:0.8rem;">{manual_top['match_score']}%</span></h4>
-                        </div>
-                        <div style="padding: 0.7rem;">
-                            <h5>{manual_top['title']}</h5>
-                            <p style="font-size: 0.8rem;">{manual_top['description']}</p>
-                            <p style="font-size: 0.8rem;"><strong>Matching:</strong> {len(manual_top['match_details']['interest_matches'])} interests, {len(manual_top['match_details']['skill_matches']['current'])} current skills, {len(manual_top['match_details']['sdg_matches'])} SDGs</p>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    ai_top = st.session_state.ai_career_matches[0]
-                    st.markdown(f"""
-                    <div style="border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="background-color: #bbdefb; color: #1565c0; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                            <h4 style="margin: 0; font-size: 1rem;">AI Analysis <span style="float:right; font-size:0.8rem;">{ai_top['match_score']}%</span></h4>
-                        </div>
-                        <div style="padding: 0.7rem;">
-                            <h5>{ai_top['title']}</h5>
-                            <p style="font-size: 0.8rem;">{ai_top['description']}</p>
-                            <p style="font-size: 0.8rem;"><strong>Key Point:</strong> {ai_top['explanation'][:100]}...</p>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    judge_top = st.session_state.judge_career_matches[0]
-                    st.markdown(f"""
-                    <div style="border: 1px solid #ffd54f; border-radius: 0.5rem; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="background-color: #fff8e1; color: #ff8f00; padding: 0.7rem; border-radius: 0.5rem 0.5rem 0 0;">
-                            <h4 style="margin: 0; font-size: 1rem;">AI Judge <span style="float:right; font-size:0.8rem;">{judge_top['match_score']}%</span></h4>
-                        </div>
-                        <div style="padding: 0.7rem;">
-                            <h5>{judge_top['title']}</h5>
-                            <p style="font-size: 0.8rem;">{judge_top['description']}</p>
-                            <p style="font-size: 0.8rem;"><strong>Analysis:</strong> {judge_top['analysis'][:100]}...</p>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                st.error("OpenAI API key not found. Unable to generate AI career recommendations.")
         
         if st.button("Start Over", type="primary"):
             restart()
