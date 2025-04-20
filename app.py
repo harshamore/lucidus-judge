@@ -717,9 +717,9 @@ def get_ai_career_matches():
                 "id": career["id"],
                 "title": career["title"],
                 "description": career["description"],
-                "interests": career["interests"],
-                "skills": career["skills"],
-                "sdgs": [f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in career["sdgs"]]
+                #"interests": career["interests"],
+                #"skills": career["skills"],
+                #"sdgs": [f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in career["sdgs"]]
             }
             career_data.append(career_info)
         
@@ -730,21 +730,18 @@ def get_ai_career_matches():
 
         You'll be given:
         1. A student's interests, current skills, desired skills, and values (UN SDGs they care about)
-        2. A list of potential careers with descriptions, interests, skills, and associated SDGs
+        2. A list of potential careers with descriptions
 
         Your task is to:
         1. Analyze the student's profile
         2. Find the 6 best career matches from the provided list
         3. Return a JSON response with these matches, including explanations for why each match is good
-        4. Assign higher score to Interests, Values and Skills, lower score to Skills to develop
 
         For each career match, include:
         - Career title and description
         - Detailed explanation of why this is a good match based on interests, skills, and SDGs
         - Key interests, skills, and SDGs that align with this career
         - A "match_score" between 1-100 indicating how good the match is (highest score first)
-
-        Focus on finding careers that match the student's values (SDGs) first, then look for interest and skill alignment.
         """
 
         user_prompt = f"""
