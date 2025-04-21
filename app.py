@@ -153,18 +153,6 @@ st.markdown("""
         padding: 1rem;
         margin-top: 1rem;
     }
-    
-    /* Custom checkbox styling */
-    .stCheckbox {
-        margin-bottom: 5px !important;
-    }
-    
-    .checkbox-section {
-        background-color: #f8f9fa;
-        border-radius: 0.5rem;
-        padding: 0.5rem;
-        margin-bottom: 1rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -584,64 +572,6 @@ interest_categories = load_interest_categories()
 skill_categories = load_skill_categories()
 sdgs = load_sdgs()
 
-# Helper functions for checkbox selection with limits
-def update_selected_interests():
-    # Reset the selected interests
-    st.session_state.selected_interests = []
-    
-    # Get all checkboxes from session state that start with "interest_"
-    for key, value in st.session_state.items():
-        if key.startswith("interest_") and value:
-            interest = key.replace("interest_", "")
-            st.session_state.selected_interests.append(interest)
-    
-    # If more than 3, keep only the first 3
-    if len(st.session_state.selected_interests) > 3:
-        # Remove the most recently added one
-        excess = len(st.session_state.selected_interests) - 3
-        for _ in range(excess):
-            last_interest = st.session_state.selected_interests.pop()
-            # Uncheck the corresponding checkbox
-            st.session_state[f"interest_{last_interest}"] = False
-
-def update_selected_skills():
-    # Reset the selected skills
-    st.session_state.current_skills = []
-    
-    # Get all checkboxes from session state that start with "skill_"
-    for key, value in st.session_state.items():
-        if key.startswith("skill_") and value:
-            skill = key.replace("skill_", "")
-            st.session_state.current_skills.append(skill)
-    
-    # If more than 3, keep only the first 3
-    if len(st.session_state.current_skills) > 3:
-        # Remove the most recently added one
-        excess = len(st.session_state.current_skills) - 3
-        for _ in range(excess):
-            last_skill = st.session_state.current_skills.pop()
-            # Uncheck the corresponding checkbox
-            st.session_state[f"skill_{last_skill}"] = False
-
-def update_selected_sdgs():
-    # Reset the selected SDGs
-    st.session_state.selected_sdgs = []
-    
-    # Get all checkboxes from session state that start with "sdg_"
-    for key, value in st.session_state.items():
-        if key.startswith("sdg_") and value:
-            sdg_id = int(key.replace("sdg_", ""))
-            st.session_state.selected_sdgs.append(sdg_id)
-    
-    # If more than 3, keep only the first 3
-    if len(st.session_state.selected_sdgs) > 3:
-        # Remove the most recently added one
-        excess = len(st.session_state.selected_sdgs) - 3
-        for _ in range(excess):
-            last_sdg = st.session_state.selected_sdgs.pop()
-            # Uncheck the corresponding checkbox
-            st.session_state[f"sdg_{last_sdg}"] = False
-
 def get_sdg_names(sdg_ids):
     return [sdg["name"] for sdg in sdgs if sdg["id"] in sdg_ids]
 
@@ -681,7 +611,7 @@ def match_careers_manually():
         career_with_score = career.copy()
         career_with_score["score"] = score
         career_with_score["match_details"] = match_details
-        # Calculate match percentage (max score would be 3*3 + 3*2 + 3*3 = 27)
+        # Calculate match percentage
         max_score = 3*3 + 3*2 + 3*3
         career_with_score["match_score"] = int((score / max_score) * 100)
         scored_careers.append(career_with_score)
@@ -959,6 +889,7 @@ def go_to_next_step():
         st.session_state.step = 4
 
 def restart():
+    # Clear all session state variables
     st.session_state.step = 1
     st.session_state.selected_interests = []
     st.session_state.current_skills = []
@@ -966,12 +897,11 @@ def restart():
     st.session_state.manual_career_matches = []
     st.session_state.ai_career_matches = []
     st.session_state.judge_career_matches = []
-    st.session_state.active_tab = "judge"
     
-    # Clear all checkboxes
+    # Clear all checkbox states
     for key in list(st.session_state.keys()):
-        if key.startswith(("interest_", "skill_", "sdg_")):
-            st.session_state.pop(key)
+        if key.startswith("checkbox_"):
+            st.session_state.pop(key, None)
 
 # Sidebar with info about the app
 with st.sidebar:
@@ -1030,60 +960,67 @@ with col4:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# Step 1: Interests with checkboxes
+# Step 1: Interests with basic checkboxes
 if st.session_state.step == 1:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
         st.markdown('<h2 class="step-header" style="background-color: #e3f2fd; color: #1565c0;">Step 1: Select 3 Interests</h2>', unsafe_allow_html=True)
         st.write("Choose three subjects that you enjoy the most in school.")
         
-        # Show selected count and warning if needed
+        # Display counter
         selected_count = len(st.session_state.selected_interests)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count == 3:
-            st.success("Great! You've selected 3 interests. You can proceed to the next step.")
-        elif selected_count > 3:
-            st.warning("You can only select up to 3 interests. Please uncheck some options.")
+        if selected_count >= 3:
+            st.info("You have selected 3 interests. You can now proceed to the next step.")
         
-        # Display checkboxes organized by category
+        # Display interests as checkboxes in expandable sections
         for category, interests in interest_categories.items():
             with st.expander(f"{category}"):
-                st.markdown('<div class="checkbox-section">', unsafe_allow_html=True)
-                # Display checkboxes for interests
                 cols = st.columns(2)
-                half_length = len(interests) // 2 + len(interests) % 2
+                half = len(interests) // 2 + (len(interests) % 2)
                 
-                for i, interest in enumerate(interests[:half_length]):
+                for i, interest in enumerate(interests[:half]):
                     with cols[0]:
-                        # Create a unique key for each interest
-                        key = f"interest_{interest}"
                         # Check if this interest is already selected
                         is_selected = interest in st.session_state.selected_interests
-                        # Create checkbox with initial value based on previous selection
-                        checkbox_val = st.checkbox(
-                            interest, 
-                            value=is_selected,
-                            key=key,
-                            on_change=update_selected_interests,
-                            disabled=selected_count >= 3 and not is_selected
-                        )
+                        
+                        # Create checkbox
+                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}"):
+                            # Add to selected if not already there
+                            if interest not in st.session_state.selected_interests:
+                                if len(st.session_state.selected_interests) < 3:
+                                    st.session_state.selected_interests.append(interest)
+                                else:
+                                    st.warning(f"You can only select 3 interests. '{interest}' was not added.")
+                                    # Need to uncheck the checkbox
+                                    st.session_state[f"checkbox_{interest}"] = False
+                                    st.rerun()
+                        else:
+                            # Remove from selected if it was there
+                            if interest in st.session_state.selected_interests:
+                                st.session_state.selected_interests.remove(interest)
                 
-                for i, interest in enumerate(interests[half_length:]):
+                for i, interest in enumerate(interests[half:]):
                     with cols[1]:
-                        # Create a unique key for each interest
-                        key = f"interest_{interest}"
                         # Check if this interest is already selected
                         is_selected = interest in st.session_state.selected_interests
-                        # Create checkbox with initial value based on previous selection
-                        checkbox_val = st.checkbox(
-                            interest, 
-                            value=is_selected,
-                            key=key,
-                            on_change=update_selected_interests,
-                            disabled=selected_count >= 3 and not is_selected
-                        )
-                st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # Create checkbox
+                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}"):
+                            # Add to selected if not already there
+                            if interest not in st.session_state.selected_interests:
+                                if len(st.session_state.selected_interests) < 3:
+                                    st.session_state.selected_interests.append(interest)
+                                else:
+                                    st.warning(f"You can only select 3 interests. '{interest}' was not added.")
+                                    # Need to uncheck the checkbox
+                                    st.session_state[f"checkbox_{interest}"] = False
+                                    st.rerun()
+                        else:
+                            # Remove from selected if it was there
+                            if interest in st.session_state.selected_interests:
+                                st.session_state.selected_interests.remove(interest)
         
         # Show selected interests
         if st.session_state.selected_interests:
@@ -1098,60 +1035,67 @@ if st.session_state.step == 1:
             
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 2: Skills with checkboxes
+# Step 2: Skills with basic checkboxes
 elif st.session_state.step == 2:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
         st.markdown('<h2 class="step-header" style="background-color: #e8f5e9; color: #2e7d32;">Step 2: Select Your Skills</h2>', unsafe_allow_html=True)
         st.write("Choose three skills you're good at.")
         
-        # Show selected count and warning if needed
+        # Display counter
         selected_count = len(st.session_state.current_skills)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count == 3:
-            st.success("Great! You've selected 3 skills. You can proceed to the next step.")
-        elif selected_count > 3:
-            st.warning("You can only select up to 3 skills. Please uncheck some options.")
+        if selected_count >= 3:
+            st.info("You have selected 3 skills. You can now proceed to the next step.")
         
-        # Display checkboxes organized by category
+        # Display skills as checkboxes in expandable sections
         for category, skills in skill_categories.items():
             with st.expander(f"{category}"):
-                st.markdown('<div class="checkbox-section">', unsafe_allow_html=True)
-                # Display checkboxes for skills
                 cols = st.columns(2)
-                half_length = len(skills) // 2 + len(skills) % 2
+                half = len(skills) // 2 + (len(skills) % 2)
                 
-                for i, skill in enumerate(skills[:half_length]):
+                for i, skill in enumerate(skills[:half]):
                     with cols[0]:
-                        # Create a unique key for each skill
-                        key = f"skill_{skill}"
                         # Check if this skill is already selected
                         is_selected = skill in st.session_state.current_skills
-                        # Create checkbox with initial value based on previous selection
-                        checkbox_val = st.checkbox(
-                            skill, 
-                            value=is_selected,
-                            key=key,
-                            on_change=update_selected_skills,
-                            disabled=selected_count >= 3 and not is_selected
-                        )
+                        
+                        # Create checkbox
+                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}"):
+                            # Add to selected if not already there
+                            if skill not in st.session_state.current_skills:
+                                if len(st.session_state.current_skills) < 3:
+                                    st.session_state.current_skills.append(skill)
+                                else:
+                                    st.warning(f"You can only select 3 skills. '{skill}' was not added.")
+                                    # Need to uncheck the checkbox
+                                    st.session_state[f"checkbox_{skill}"] = False
+                                    st.rerun()
+                        else:
+                            # Remove from selected if it was there
+                            if skill in st.session_state.current_skills:
+                                st.session_state.current_skills.remove(skill)
                 
-                for i, skill in enumerate(skills[half_length:]):
+                for i, skill in enumerate(skills[half:]):
                     with cols[1]:
-                        # Create a unique key for each skill
-                        key = f"skill_{skill}"
                         # Check if this skill is already selected
                         is_selected = skill in st.session_state.current_skills
-                        # Create checkbox with initial value based on previous selection
-                        checkbox_val = st.checkbox(
-                            skill, 
-                            value=is_selected,
-                            key=key,
-                            on_change=update_selected_skills,
-                            disabled=selected_count >= 3 and not is_selected
-                        )
-                st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # Create checkbox
+                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}"):
+                            # Add to selected if not already there
+                            if skill not in st.session_state.current_skills:
+                                if len(st.session_state.current_skills) < 3:
+                                    st.session_state.current_skills.append(skill)
+                                else:
+                                    st.warning(f"You can only select 3 skills. '{skill}' was not added.")
+                                    # Need to uncheck the checkbox
+                                    st.session_state[f"checkbox_{skill}"] = False
+                                    st.rerun()
+                        else:
+                            # Remove from selected if it was there
+                            if skill in st.session_state.current_skills:
+                                st.session_state.current_skills.remove(skill)
         
         # Show selected skills
         if st.session_state.current_skills:
@@ -1177,43 +1121,45 @@ elif st.session_state.step == 2:
                 
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 3: SDG Values with checkboxes
+# Step 3: SDGs with basic checkboxes
 elif st.session_state.step == 3:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
         st.markdown('<h2 class="step-header" style="background-color: #ede7f6; color: #5e35b1;">Step 3: Select Your Values</h2>', unsafe_allow_html=True)
         st.write("Choose up to 3 UN Sustainable Development Goals that you value most.")
         
-        # Show selected count and warning if needed
+        # Display counter
         selected_count = len(st.session_state.selected_sdgs)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count == 3:
-            st.success("Great! You've selected 3 SDGs. You can proceed to the next step.")
-        elif selected_count > 3:
-            st.warning("You can only select up to 3 SDGs. Please uncheck some options.")
-            
+        if selected_count >= 3:
+            st.info("You have selected 3 SDGs. You can now proceed to the next step.")
+        
         # Display SDGs as checkboxes in 3 columns
         cols = st.columns(3)
-        sdgs_per_column = len(sdgs) // 3 + (1 if len(sdgs) % 3 > 0 else 0)
+        sdgs_per_col = len(sdgs) // 3 + (len(sdgs) % 3 > 0)
         
         for i, sdg in enumerate(sdgs):
-            col_index = i // sdgs_per_column
-            with cols[col_index]:
-                # Create a unique key for each SDG
-                key = f"sdg_{sdg['id']}"
+            col_idx = i // sdgs_per_col
+            with cols[col_idx]:
                 # Check if this SDG is already selected
                 is_selected = sdg["id"] in st.session_state.selected_sdgs
-                # Create checkbox with initial value based on previous selection
-                checkbox_val = st.checkbox(
-                    f"{sdg['id']}. {sdg['name']}",
-                    value=is_selected,
-                    key=key,
-                    on_change=update_selected_sdgs,
-                    disabled=selected_count >= 3 and not is_selected
-                )
-        
-        st.markdown("---")
+                
+                # Create checkbox
+                if st.checkbox(f"{sdg['id']}. {sdg['name']}", value=is_selected, key=f"checkbox_sdg_{sdg['id']}"):
+                    # Add to selected if not already there
+                    if sdg["id"] not in st.session_state.selected_sdgs:
+                        if len(st.session_state.selected_sdgs) < 3:
+                            st.session_state.selected_sdgs.append(sdg["id"])
+                        else:
+                            st.warning(f"You can only select 3 SDGs. '{sdg['name']}' was not added.")
+                            # Need to uncheck the checkbox
+                            st.session_state[f"checkbox_sdg_{sdg['id']}"] = False
+                            st.rerun()
+                else:
+                    # Remove from selected if it was there
+                    if sdg["id"] in st.session_state.selected_sdgs:
+                        st.session_state.selected_sdgs.remove(sdg["id"])
         
         # Show selected SDGs
         if st.session_state.selected_sdgs:
