@@ -960,7 +960,7 @@ with col4:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# Step 1: Interests with basic checkboxes
+# Step 1: Interests with fixed checkboxes
 if st.session_state.step == 1:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
@@ -971,7 +971,13 @@ if st.session_state.step == 1:
         selected_count = len(st.session_state.selected_interests)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count >= 3:
+        # Show warning if too many are selected
+        if selected_count > 3:
+            st.warning("You've selected more than 3 interests. Please uncheck some to proceed.")
+            # Reset to only the first 3
+            st.session_state.selected_interests = st.session_state.selected_interests[:3]
+            selected_count = 3
+        elif selected_count == 3:
             st.info("You have selected 3 interests. You can now proceed to the next step.")
         
         # Display interests as checkboxes in expandable sections
@@ -985,42 +991,32 @@ if st.session_state.step == 1:
                         # Check if this interest is already selected
                         is_selected = interest in st.session_state.selected_interests
                         
+                        # Disable checkbox if at limit and not already selected
+                        disabled = selected_count >= 3 and not is_selected
+                        
                         # Create checkbox
-                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}"):
-                            # Add to selected if not already there
+                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}", disabled=disabled):
                             if interest not in st.session_state.selected_interests:
                                 if len(st.session_state.selected_interests) < 3:
                                     st.session_state.selected_interests.append(interest)
-                                else:
-                                    st.warning(f"You can only select 3 interests. '{interest}' was not added.")
-                                    # Need to uncheck the checkbox
-                                    st.session_state[f"checkbox_{interest}"] = False
-                                    st.rerun()
-                        else:
-                            # Remove from selected if it was there
-                            if interest in st.session_state.selected_interests:
-                                st.session_state.selected_interests.remove(interest)
+                        elif interest in st.session_state.selected_interests:
+                            st.session_state.selected_interests.remove(interest)
                 
                 for i, interest in enumerate(interests[half:]):
                     with cols[1]:
                         # Check if this interest is already selected
                         is_selected = interest in st.session_state.selected_interests
                         
+                        # Disable checkbox if at limit and not already selected
+                        disabled = selected_count >= 3 and not is_selected
+                        
                         # Create checkbox
-                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}"):
-                            # Add to selected if not already there
+                        if st.checkbox(interest, value=is_selected, key=f"checkbox_{interest}", disabled=disabled):
                             if interest not in st.session_state.selected_interests:
                                 if len(st.session_state.selected_interests) < 3:
                                     st.session_state.selected_interests.append(interest)
-                                else:
-                                    st.warning(f"You can only select 3 interests. '{interest}' was not added.")
-                                    # Need to uncheck the checkbox
-                                    st.session_state[f"checkbox_{interest}"] = False
-                                    st.rerun()
-                        else:
-                            # Remove from selected if it was there
-                            if interest in st.session_state.selected_interests:
-                                st.session_state.selected_interests.remove(interest)
+                        elif interest in st.session_state.selected_interests:
+                            st.session_state.selected_interests.remove(interest)
         
         # Show selected interests
         if st.session_state.selected_interests:
@@ -1035,7 +1031,7 @@ if st.session_state.step == 1:
             
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 2: Skills with basic checkboxes
+# Step 2: Skills with fixed checkboxes
 elif st.session_state.step == 2:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
@@ -1046,7 +1042,13 @@ elif st.session_state.step == 2:
         selected_count = len(st.session_state.current_skills)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count >= 3:
+        # Show warning if too many are selected
+        if selected_count > 3:
+            st.warning("You've selected more than 3 skills. Please uncheck some to proceed.")
+            # Reset to only the first 3
+            st.session_state.current_skills = st.session_state.current_skills[:3]
+            selected_count = 3
+        elif selected_count == 3:
             st.info("You have selected 3 skills. You can now proceed to the next step.")
         
         # Display skills as checkboxes in expandable sections
@@ -1060,42 +1062,32 @@ elif st.session_state.step == 2:
                         # Check if this skill is already selected
                         is_selected = skill in st.session_state.current_skills
                         
+                        # Disable checkbox if at limit and not already selected
+                        disabled = selected_count >= 3 and not is_selected
+                        
                         # Create checkbox
-                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}"):
-                            # Add to selected if not already there
+                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}", disabled=disabled):
                             if skill not in st.session_state.current_skills:
                                 if len(st.session_state.current_skills) < 3:
                                     st.session_state.current_skills.append(skill)
-                                else:
-                                    st.warning(f"You can only select 3 skills. '{skill}' was not added.")
-                                    # Need to uncheck the checkbox
-                                    st.session_state[f"checkbox_{skill}"] = False
-                                    st.rerun()
-                        else:
-                            # Remove from selected if it was there
-                            if skill in st.session_state.current_skills:
-                                st.session_state.current_skills.remove(skill)
+                        elif skill in st.session_state.current_skills:
+                            st.session_state.current_skills.remove(skill)
                 
                 for i, skill in enumerate(skills[half:]):
                     with cols[1]:
                         # Check if this skill is already selected
                         is_selected = skill in st.session_state.current_skills
                         
+                        # Disable checkbox if at limit and not already selected
+                        disabled = selected_count >= 3 and not is_selected
+                        
                         # Create checkbox
-                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}"):
-                            # Add to selected if not already there
+                        if st.checkbox(skill, value=is_selected, key=f"checkbox_{skill}", disabled=disabled):
                             if skill not in st.session_state.current_skills:
                                 if len(st.session_state.current_skills) < 3:
                                     st.session_state.current_skills.append(skill)
-                                else:
-                                    st.warning(f"You can only select 3 skills. '{skill}' was not added.")
-                                    # Need to uncheck the checkbox
-                                    st.session_state[f"checkbox_{skill}"] = False
-                                    st.rerun()
-                        else:
-                            # Remove from selected if it was there
-                            if skill in st.session_state.current_skills:
-                                st.session_state.current_skills.remove(skill)
+                        elif skill in st.session_state.current_skills:
+                            st.session_state.current_skills.remove(skill)
         
         # Show selected skills
         if st.session_state.current_skills:
@@ -1121,7 +1113,7 @@ elif st.session_state.step == 2:
                 
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Step 3: SDGs with basic checkboxes
+# Step 3: SDGs with fixed checkboxes
 elif st.session_state.step == 3:
     with st.container():
         st.markdown('<div class="step-container">', unsafe_allow_html=True)
@@ -1132,7 +1124,13 @@ elif st.session_state.step == 3:
         selected_count = len(st.session_state.selected_sdgs)
         st.write(f"Selected: {selected_count}/3")
         
-        if selected_count >= 3:
+        # Show warning if too many are selected
+        if selected_count > 3:
+            st.warning("You've selected more than 3 SDGs. Please uncheck some to proceed.")
+            # Reset to only the first 3
+            st.session_state.selected_sdgs = st.session_state.selected_sdgs[:3]
+            selected_count = 3
+        elif selected_count == 3:
             st.info("You have selected 3 SDGs. You can now proceed to the next step.")
         
         # Display SDGs as checkboxes in 3 columns
@@ -1145,21 +1143,16 @@ elif st.session_state.step == 3:
                 # Check if this SDG is already selected
                 is_selected = sdg["id"] in st.session_state.selected_sdgs
                 
+                # Disable checkbox if at limit and not already selected
+                disabled = selected_count >= 3 and not is_selected
+                
                 # Create checkbox
-                if st.checkbox(f"{sdg['id']}. {sdg['name']}", value=is_selected, key=f"checkbox_sdg_{sdg['id']}"):
-                    # Add to selected if not already there
+                if st.checkbox(f"{sdg['id']}. {sdg['name']}", value=is_selected, key=f"checkbox_sdg_{sdg['id']}", disabled=disabled):
                     if sdg["id"] not in st.session_state.selected_sdgs:
                         if len(st.session_state.selected_sdgs) < 3:
                             st.session_state.selected_sdgs.append(sdg["id"])
-                        else:
-                            st.warning(f"You can only select 3 SDGs. '{sdg['name']}' was not added.")
-                            # Need to uncheck the checkbox
-                            st.session_state[f"checkbox_sdg_{sdg['id']}"] = False
-                            st.rerun()
-                else:
-                    # Remove from selected if it was there
-                    if sdg["id"] in st.session_state.selected_sdgs:
-                        st.session_state.selected_sdgs.remove(sdg["id"])
+                elif sdg["id"] in st.session_state.selected_sdgs:
+                    st.session_state.selected_sdgs.remove(sdg["id"])
         
         # Show selected SDGs
         if st.session_state.selected_sdgs:
