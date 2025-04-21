@@ -6,6 +6,13 @@ import openai
 import time
 import random
 from openai import OpenAI
+with st.sidebar:
+    if st.button("Show All Careers"):
+        df = pd.read_csv("lucidus_career_mapping_all_125_corrected.csv")
+        st.write(f"Total number of careers: {len(df['career'])}")
+        st.write("All Careers:")
+        for career in sorted(df["career"].unique()):
+            st.write(f"- {career}")
 
 # Set page configuration
 st.set_page_config(
