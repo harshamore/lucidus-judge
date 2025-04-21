@@ -436,6 +436,9 @@ def match_careers_manually():
     # Score each career based on matches
     scored_careers = []
     
+    # Log the total number of careers being processed
+    st.write(f"Processing {len(careers)} careers for manual matching...")
+    
     for career in careers:
         score = 0
         match_details = {
@@ -471,12 +474,33 @@ def match_careers_manually():
         career_with_score["match_score"] = int((score / 27) * 100)
         scored_careers.append(career_with_score)
     
+    # First check if we have any matches with score > 0
+    matches_with_score = [c for c in scored_careers if c["score"] > 0]
+    
+    # If we have fewer than 6 matches with score > 0, include some with score = 0
+    if len(matches_with_score) < 6:
+        st.warning(f"Only found {len(matches_with_score)} careers with matching criteria. Including some additional options.")
+        
+        # Add careers with score 0 until we have 6 or run out of careers
+        zero_score_careers = [c for c in scored_careers if c["score"] == 0]
+        additional_needed = min(6 - len(matches_with_score), len(zero_score_careers))
+        
+        # Take a random selection of zero-score careers
+        import random
+        random.shuffle(zero_score_careers)
+        matches_with_score.extend(zero_score_careers[:additional_needed])
+    
     # Sort by score and take top 6
     top_matches = sorted(
-        [c for c in scored_careers if c["score"] > 0],
+        matches_with_score,
         key=lambda x: x["score"],
         reverse=True
     )[:6]
+    
+    # Log the top matches for debugging
+    st.write(f"Found {len(top_matches)} top career matches")
+    for match in top_matches:
+        st.write(f"- {match['title']} (Score: {match['match_score']}%)")
     
     return top_matches
 
@@ -495,6 +519,9 @@ def get_ai_career_matches():
         current_skills_str = ", ".join(st.session_state.current_skills)
         sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
         
+        # Log the total number of careers being processed
+        st.write(f"Processing {len(careers)} careers for AI matching...")
+        
         # Construct the career data - ONLY include title (as requested)
         career_data = []
         for career in careers:
@@ -505,7 +532,27 @@ def get_ai_career_matches():
             }
             career_data.append(career_info)
         
-        career_data_json = json.dumps(career_data)
+        # Check if we have too many careers for a single API call
+        if len(career_data) > 100:
+            st.warning(f"Large dataset detected ({len(career_data)} careers). Processing in batches.")
+            # Process in batches to avoid token limits
+            batches = [career_data[i:i+100] for i in range(0, len(career_data), 100)]
+            all_results = []
+            
+            for batch_index, batch in enumerate(batches):
+                st.write(f"Processing batch {batch_index+1}/{len(batches)}...")
+                batch_json = json.dumps(batch)
+                # Process this batch and collect results
+                # Code for processing batch will be added here
+                # For now, just add to all_results
+                # We'll implement batch processing in the next update
+            
+            # For now, just use the first batch to avoid complexity
+            career_data = batches[0]
+            career_data_json = json.dumps(career_data)
+            st.warning("Using only the first 100 careers for this demo. Full batch processing will be implemented soon.")
+        else:
+            career_data_json = json.dumps(career_data)
         
         # Construct the prompt for OpenAI
         system_prompt = f"""You are a career counselor AI that helps students find the best career matches based on their interests, skills, and values.
@@ -696,6 +743,22 @@ def go_to_next_step():
     elif st.session_state.step == 3 and len(st.session_state.selected_sdgs) > 0:
         # Generate career matches using all methods
         with st.spinner("Finding your ideal career matches..."):
+            # Create a container for debug information
+            debug_container = st.container()
+            
+            with debug_container:
+                st.write("### Debug Information")
+                st.write("This information will help diagnose any issues with career matching.")
+                # Display total number of careers loaded
+                st.write(f"Total careers loaded from CSV: {len(careers)}")
+                
+                # Display a sample of careers to verify data loading
+                st.write("Sample of careers loaded:")
+                for i, career in enumerate(careers[:5]):
+                    st.write(f"{i+1}. {career['title']}")
+                if len(careers) > 5:
+                    st.write(f"... and {len(careers)-5} more")
+            
             # Set up progress bar for career matching
             progress_bar = st.progress(0)
             progress_text = st.empty()
@@ -707,6 +770,8 @@ def go_to_next_step():
                 time.sleep(0.05)
                 
             # Get manual matches
+            with debug_container:
+                st.write("### Manual Matching Process")
             st.session_state.manual_career_matches = match_careers_manually()
             
             if st.session_state.has_api_key:
@@ -717,6 +782,8 @@ def go_to_next_step():
                     time.sleep(0.05)
                 
                 # Get AI matches
+                with debug_container:
+                    st.write("### AI Matching Process")
                 st.session_state.ai_career_matches = get_ai_career_matches()
                 
                 # Third phase: AI Judge evaluation
@@ -727,6 +794,11 @@ def go_to_next_step():
                 
                 # Get AI Judge matches if both other methods have results
                 if st.session_state.manual_career_matches and st.session_state.ai_career_matches:
+                    with debug_container:
+                        st.write("### AI Judge Evaluation Process")
+                        st.write(f"Manual matches: {len(st.session_state.manual_career_matches)}")
+                        st.write(f"AI matches: {len(st.session_state.ai_career_matches)}")
+                    
                     st.session_state.judge_career_matches = get_ai_judge_career_matches(
                         st.session_state.manual_career_matches, 
                         st.session_state.ai_career_matches
@@ -740,6 +812,9 @@ def go_to_next_step():
             # Finish the progress bar
             progress_bar.progress(100)
             time.sleep(0.5)
+            
+            # Hide debug information in final view
+            debug_container.empty()
             
         st.session_state.step = 4
 
