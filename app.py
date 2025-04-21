@@ -195,6 +195,9 @@ def load_career_data():
                 st.error(f"Required column '{col}' not found in CSV file. Please check your CSV format.")
                 return []
         
+        # Log the CSV reading process
+        st.write(f"CSV file loaded successfully. Found {len(df)} career entries.")
+        
         # Convert the DataFrame to the required format
         careers = []
         for _, row in df.iterrows():
@@ -234,16 +237,28 @@ def load_career_data():
             }
             careers.append(career)
         
+        # IMPORTANT: Check if we have a reasonable number of careers
+        if len(careers) < 100:
+            st.warning(f"Only loaded {len(careers)} careers from CSV. This seems low - expected around 125.")
+        
         if not careers:
             st.error("No career data was loaded from the CSV. Please check your CSV file.")
             return []
             
+        st.success(f"Successfully processed {len(careers)} careers from CSV file.")
         return careers
     except FileNotFoundError:
-        st.error("CSV file not found. Please upload 'lucidus_career_mapping_all_125_corrected.csv' to your app directory.")
+        st.error("CSV file 'lucidus_career_mapping_all_125_corrected.csv' not found in app directory.")
+        # Check if file exists in other possible locations
+        import os
+        current_dir = os.getcwd()
+        st.error(f"Current working directory: {current_dir}")
+        st.error(f"Files in current directory: {os.listdir(current_dir)}")
         return []
     except Exception as e:
         st.error(f"Error loading CSV data: {str(e)}")
+        import traceback
+        st.error(f"Detailed error: {traceback.format_exc()}")
         return []
 
 # Interests data structured by category
@@ -847,6 +862,36 @@ with st.sidebar:
         st.warning("OpenAI API key not found. Only manual matching will be available.")
     else:
         st.success("OpenAI API key found. AI Career Counselor is ready.")
+    
+    st.markdown("---")
+    
+    # Add CSV upload feature
+    st.header("CSV Data Management")
+    uploaded_file = st.file_uploader("Upload Career CSV", type="csv")
+    
+    if uploaded_file is not None:
+        # Save the uploaded file to the current directory
+        with open("lucidus_career_mapping_all_125_corrected.csv", "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        # Read and show statistics
+        df = pd.read_csv("lucidus_career_mapping_all_125_corrected.csv")
+        st.success(f"CSV loaded with {len(df)} careers!")
+        
+        # Clear the cache to reload data
+        st.cache_data.clear()
+        
+        # Prompt user to restart analysis
+        if st.button("Restart Analysis with New Data"):
+            st.session_state.step = 1
+            st.session_state.selected_interests = []
+            st.session_state.current_skills = []
+            st.session_state.selected_sdgs = []
+            st.session_state.manual_career_matches = []
+            st.session_state.ai_career_matches = []
+            st.session_state.judge_career_matches = []
+            st.session_state.active_tab = "judge"
+            st.experimental_rerun()
 
 # Header
 st.title("Career Discovery Platform")
