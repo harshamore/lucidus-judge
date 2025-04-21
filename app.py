@@ -184,52 +184,24 @@ progress_messages = {
 # Career data with mappings to interests, skills, and SDGs
 @st.cache_data
 def load_career_data():
-    # Default career descriptions to use when no description is provided in CSV
-    default_descriptions = {
-        "Microfinance Specialist": "Designs small loans and savings programs to support underserved communities.",
-        "Agroecologist": "Applies ecological science to farming for healthier food systems and better soil.",
-        "Biomedical Engineer": "Develops medical devices like prosthetics, diagnostic tools, and wearable tech.",
-        "Digital Learning Developer": "Creates educational games, apps, and platforms for digital learning.",
-        "Hydrologist": "Studies the water cycle and helps improve clean water access and conservation.",
-        "Wind Turbine Technician": "Installs and maintains turbines that convert wind into clean electricity.",
-        "Waste Management Engineer": "Designs systems for composting, recycling, and waste reduction.",
-        "Circular Economy Analyst": "Redesigns how companies produce and reuse materials to reduce waste.",
-        "Sustainable Fashion Designer": "Creates trendy clothing using ethical and eco-friendly materials.",
-        "Atmospheric Scientist": "Studies weather and climate systems to understand and model change.",
-        "Carbon Accounting Analyst": "Tracks emissions and helps companies reduce their carbon footprint.",
-        "Marine Biologist": "Studies ocean ecosystems and works to protect marine biodiversity.",
-        "Urban City Planner": "Designs greener, more connected cities using sustainable planning.",
-        "Resilience Engineer": "Builds infrastructure that can withstand floods, heatwaves, and climate shocks.",
-        "Disaster Relief Coordinator": "Coordinates emergency response during disasters, from logistics to shelter.",
-        "Environmental Data Scientist": "Uses data to predict and respond to environmental and climate issues.",
-        "Food Systems Analyst": "Analyzes global food supply chains and suggests improvements for sustainability.",
-        "Space Systems Engineer": "Designs satellites and space tech used in communication and climate monitoring.",
-        "AI Engineer": "Develops intelligent systems that power apps, automation, and innovation.",
-        "Doctor": "Diagnoses and treats patients, supporting health and well-being.",
-        "Product Manager": "Leads product teams from idea to launch across industries.",
-        "Graphic Designer": "Creates visual content like logos, posters, and digital assets.",
-        "Journalist": "Reports and writes news stories for TV, social media, or publications.",
-        "Investment Banker": "Advises companies on financial deals, growth, and capital strategies.",
-        "Game Designer": "Builds interactive games for entertainment and education.",
-        "Biotech Researcher": "Develops breakthroughs like vaccines, clean meat, or gene therapy.",
-        "Neuroscientist": "Studies the human brain to understand memory, emotions, and health.",
-        "UX Designer": "Designs interfaces that make tech easy, ethical, and human-centered."
-    }
-    
-    # Generic description for careers not covered above
-    generic_description = "A professional role requiring specialized knowledge and skills in this field."
-    
     try:
         # Read the CSV file
         df = pd.read_csv("lucidus_career_mapping_all_125_corrected.csv")
+        
+        # Check if required columns exist
+        required_columns = ["career", "subjects", "skill_tags", "sdg_tags"]
+        for col in required_columns:
+            if col not in df.columns:
+                st.error(f"Required column '{col}' not found in CSV file. Please check your CSV format.")
+                return []
         
         # Convert the DataFrame to the required format
         careers = []
         for _, row in df.iterrows():
             career_title = row["career"]
             
-            # Get description from our dictionary or use generic
-            description = default_descriptions.get(career_title, generic_description)
+            # Use career title as description if none provided
+            description = f"A professional role in {career_title}."
             
             # Parse interests (subjects)
             interests = []
@@ -262,30 +234,17 @@ def load_career_data():
             }
             careers.append(career)
         
+        if not careers:
+            st.error("No career data was loaded from the CSV. Please check your CSV file.")
+            return []
+            
         return careers
+    except FileNotFoundError:
+        st.error("CSV file not found. Please upload 'lucidus_career_mapping_all_125_corrected.csv' to your app directory.")
+        return []
     except Exception as e:
         st.error(f"Error loading CSV data: {str(e)}")
-        # Return the original hardcoded data as fallback
-        # This is your original careers data as a fallback
-        return [
-            {
-                "id": 1,
-                "title": "Microfinance Specialist",
-                "description": "Designs small loans and savings programs to support underserved communities.",
-                "interests": ["Economics", "Business Studies / Entrepreneurship", "Global Politics / Civics"],
-                "skills": ["Strategic thinking", "Data analysis", "Helping people", "Understanding cultures"],
-                "sdgs": [1, 8, 10]  # No Poverty, Decent Work & Economic Growth, Reduced Inequalities
-            },
-            # ... rest of the original hardcoded career data
-            {
-                "id": 28,
-                "title": "UX Designer",
-                "description": "Designs interfaces that make tech easy, ethical, and human-centered.",
-                "interests": ["Psychology", "Graphic Design / Digital Media", "Computer Science / Programming"],
-                "skills": ["Creative thinking", "Designing digitally", "Listening well", "Problem solving"],
-                "sdgs": [9, 10, 4]  # Industry/Innovation, Reduced Inequalities, Quality Education
-            }
-        ]
+        return []
 
 # Interests data structured by category
 @st.cache_data
@@ -536,14 +495,13 @@ def get_ai_career_matches():
         current_skills_str = ", ".join(st.session_state.current_skills)
         sdgs_str = ", ".join([f"SDG {sdg_id}: {[s['name'] for s in sdgs if s['id'] == sdg_id][0]}" for sdg_id in st.session_state.selected_sdgs])
         
-        # Construct the career data - ONLY include title and description
+        # Construct the career data - ONLY include title (as requested)
         career_data = []
         for career in careers:
             career_info = {
                 "id": career["id"],
                 "title": career["title"],
-                "description": career["description"]
-                # Not including interests, skills, and SDGs for AI to determine matches independently
+                # Only use career title for AI matching as requested
             }
             career_data.append(career_info)
         
@@ -554,7 +512,7 @@ def get_ai_career_matches():
 
         You'll be given:
         1. A student's interests, skills, and values (UN SDGs they care about)
-        2. A list of potential careers with descriptions
+        2. A list of potential careers (only career titles)
 
         Your task is to:
         1. Analyze the student's profile
@@ -562,7 +520,7 @@ def get_ai_career_matches():
         3. Return a JSON response with these matches, including explanations for why each match is good
 
         For each career match, include:
-        - Career title and description
+        - Career title
         - Detailed explanation of why this is a good match based on interests, skills, and SDGs
         - Key interests, skills, and SDGs that align with this career
         - A "match_score" between 1-100 indicating how good the match is (highest score first)
@@ -584,7 +542,7 @@ def get_ai_career_matches():
             {{
               "id": career_id,
               "title": "Career Title",
-              "description": "Career description",
+              "description": "A professional role in this field.",
               "match_score": score_between_1_and_100,
               "explanation": "Detailed explanation of why this is a good match",
               "matching_interests": ["interest1", "interest2", "interest3"],
