@@ -714,9 +714,9 @@ def get_ai_career_matches():
               "description": "Career description",
               "match_score": score_between_1_and_100,
               "explanation": "Detailed explanation of why this is a good match",
-              "matching_interests": ["interest1", "interest2"],
-              "matching_skills": {{"current": ["skill1", "skill2"]}},
-              "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
+              "matching_interests": ["interest1", "interest2", "interest3"],
+              "matching_skills": {{"current": ["skill1", "skill2", "skill3"]}},
+              "matching_sdgs": ["SDG1: Name", "SDG2: Name", "SDG3: Name"]
             }},
             ...
           ]
@@ -816,10 +816,10 @@ def get_ai_judge_career_matches(manual_matches, ai_matches):
               "description": "Career description",
               "match_score": score_between_1_and_100,
               "explanation": "Your expert reasoning on why this is a good match",
-              "analysis": "Brief comparison of how this career was ranked in both systems",
-              "matching_interests": ["interest1", "interest2"],
-              "matching_skills": {{"current": ["skill1", "skill2"]}},
-              "matching_sdgs": ["SDG1: Name", "SDG2: Name"]
+              "analysis": "Brief comparison of how this career was ranked in both systems, dont show the score but explain it was handpicked and then AI analysed",
+              "matching_interests": ["interest1", "interest2", "interes3"],
+              "matching_skills": {{"current": ["skill1", "skill2", "skill3"]}},
+              "matching_sdgs": ["SDG1: Name", "SDG2: Name", "SDG3: Name"]
             }},
             ...
           ]
