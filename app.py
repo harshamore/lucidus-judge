@@ -7,20 +7,6 @@ import time
 import random
 from openai import OpenAI
 
-# Read the CSV file
-df = pd.read_csv("lucidus_career_mapping_all_125_corrected.csv")
-
-# Print all careers
-print("All careers in the CSV file:")
-for career in df["career"]:
-    st.write(career)
-
-# Print total count
-st.write(f"\nTotal careers: {len(df['career'])}")
-
-# Print unique careers (if there are duplicates)
-st.write(f"Unique careers: {len(df['career'].unique())}")
-
 # Set page configuration
 st.set_page_config(
     page_title="Career Discovery Platform",
